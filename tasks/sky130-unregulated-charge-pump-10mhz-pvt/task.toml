@@ -3,7 +3,7 @@ artifacts = ["/app/circuit.spi"]
 
 [task]
 name = "analog-arena/sky130-unregulated-charge-pump-10mhz-pvt"
-description = "Design a Sky130 unregulated charge pump that holds a 2.2-2.8 V output under a 50 uA load with at most 5 mVpp ripple, 200 uA enabled and 100 nA disabled supply current."
+description = "Design a Sky130 unregulated charge pump that holds a 2.2-2.8 V output under a 40-50 uA load with at most 5 mVpp ripple, 200 uA enabled and 100 nA disabled supply current, powered only from its supply."
 authors = [{ name = "Ying Haochi" }]
 
 [metadata]
@@ -13,7 +13,7 @@ task_objective = ["Implement"]
 artifact_type = ["Hardware or firmware artifact"]
 
 [agent]
-timeout_sec = 14400.0
+timeout_sec = 7200.0
 user = "agent"
 
 [verifier]

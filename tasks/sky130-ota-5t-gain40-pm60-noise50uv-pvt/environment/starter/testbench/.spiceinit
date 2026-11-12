@@ -1,0 +1,3 @@
+* SKY130 PDK setting, as in its libs.tech/ngspice/spinit: read the libraries in HSPICE-compatible mode,
+* which picks a multi-finger device's model bin by its finger width. Signoff uses the same setting.
+set ngbehavior=hsa

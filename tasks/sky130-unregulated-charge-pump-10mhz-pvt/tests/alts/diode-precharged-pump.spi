@@ -1,0 +1,33 @@
+* Alternative: two-phase pump whose flying capacitors are precharged through
+* diode-connected devices from AVDD (no cross-coupled switch pair), with
+* diode-connected output devices. The enable gates the clock with NOR logic.
+* Logic and drivers use L = 0.5 um to keep disabled leakage low.
+.subckt charge_pump_unregulate AVDD AVSS CLK EN VOUT
+XINV_EN enb EN AVDD AVSS inv_x2
+XNOR phb CLK enb AVDD AVSS nor2
+XDRV1 pha phb AVDD AVSS inv_x8
+XDRV2 phbb pha AVDD AVSS inv_x8
+XCFA topa pha sky130_fd_pr__cap_mim_m3_1 l=25 w=25 m=6 mult=6
+XCFB topb phbb sky130_fd_pr__cap_mim_m3_1 l=25 w=25 m=6 mult=6
+XCHA topa AVDD AVDD AVSS sky130_fd_pr__nfet_05v0_nvt w=10 l=0.9 m=2 mult=2
+XCHB topb AVDD AVDD AVSS sky130_fd_pr__nfet_05v0_nvt w=10 l=0.9 m=2 mult=2
+XOUTA VOUT topa topa AVSS sky130_fd_pr__nfet_05v0_nvt w=10 l=0.9 m=2 mult=2
+XOUTB VOUT topb topb AVSS sky130_fd_pr__nfet_05v0_nvt w=10 l=0.9 m=2 mult=2
+.ends charge_pump_unregulate
+
+.subckt inv_x2 y a vdd vss
+XP y a vdd vdd sky130_fd_pr__pfet_01v8 w=2 l=0.5
+XN y a vss vss sky130_fd_pr__nfet_01v8 w=1 l=0.5
+.ends inv_x2
+
+.subckt inv_x8 y a vdd vss
+XP y a vdd vdd sky130_fd_pr__pfet_01v8 w=8 l=0.5 nf=2
+XN y a vss vss sky130_fd_pr__nfet_01v8 w=4 l=0.5 nf=2
+.ends inv_x8
+
+.subckt nor2 y a b vdd vss
+XP1 mid a vdd vdd sky130_fd_pr__pfet_01v8 w=4 l=0.5
+XP2 y b mid vdd sky130_fd_pr__pfet_01v8 w=4 l=0.5
+XN1 y a vss vss sky130_fd_pr__nfet_01v8 w=1 l=0.5
+XN2 y b vss vss sky130_fd_pr__nfet_01v8 w=1 l=0.5
+.ends nor2

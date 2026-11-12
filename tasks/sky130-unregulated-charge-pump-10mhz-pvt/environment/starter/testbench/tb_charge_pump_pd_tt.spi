@@ -1,0 +1,27 @@
+* Public development bench: tt, 27 C, 1.8 V. Grading uses the same
+* circuit and metric definitions at other conditions inside the contract.
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+
+.param supply=1.8 duty=0.5
+VSS AVSS 0 0
+VDD AVDD_SRC 0 {supply}
+VSENSE AVDD_SRC AVDD 0
+VLOW EN_SRC 0 0
+REN EN_SRC EN_R 50
+VENSENSE EN_R EN 0
+VCLK CLK_SRC 0 PULSE({supply} 0 0 1p 1p {duty*100n} 100n)
+RCLK CLK_SRC CLK_R 50
+VCLKSENSE CLK_R CLK 0
+CLOAD VOUT 0 1n
+XDUT AVDD AVSS CLK EN VOUT charge_pump_unregulate
+BPCLK p_clk 0 V=v(CLK)*i(VCLKSENSE)
+BPEN p_en 0 V=v(EN)*i(VENSENSE)
+
+.options reltol=0.001 vntol=1e-6 abstol=1e-12 gmin=1e-12
+.temp 27
+.tran 2n 10u 9u 1n
+.measure tran i_avdd_avg AVG i(VSENSE) FROM=9u TO=10u
+.measure tran p_clk_avg AVG v(p_clk) FROM=9u TO=10u
+.measure tran p_en_avg AVG v(p_en) FROM=9u TO=10u
+.end

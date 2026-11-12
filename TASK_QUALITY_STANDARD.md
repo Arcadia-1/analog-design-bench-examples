@@ -96,7 +96,7 @@ task_objective = ["Implement", "Validate"]   # Implement, Fix, Test, Validate
 artifact_type = ["Hardware or firmware artifact"]
 
 [agent]
-timeout_sec = 14400.0
+timeout_sec = 7200.0
 user = "agent"
 
 [verifier]
@@ -122,7 +122,7 @@ workdir = "/app"
 
 - `[metadata]` holds only the Terminal-Bench taxonomy fields above. Do not add maturity levels, maturity notes, display titles or descriptions, checker flags, or other repository-private keys; status and evidence belong in PRs and audit reports, and checker flags belong in `tests/test.sh`.
 - The agent runs as an unprivileged user (`agent`, uid 1000) that owns `/app`; the verifier runs as root. The environment image creates that user.
-- Agent runs are limited to 100 steps. Harbor's `task.toml` has no step field, so every benchmark run sets the limit on the agent (for example Terminus-2 `max_episodes = 100`).
+- Benchmark runs use mini-swe-agent with a 2-hour agent timeout (`[agent] timeout_sec = 7200`) and a limit of 100 steps (one model call is one step), with no cost limit. Harbor's `task.toml` has no step field: the run's mini-swe-agent configuration sets `agent.step_limit: 100` and `agent.cost_limit: 0`.
 
 - Every `task.toml` must parse with the pinned upstream Harbor `harbor.models.task.config.TaskConfig`; a repository-written checker does not replace that parser. The Harbor release is pinned in the `[harbor]` table of `toolchains.toml`. Validation records the exact Harbor commit and version.
 - Upstream schema failures and Analog Arena policy failures are reported separately as `upstream_schema_error` and `repository_policy_error`.

@@ -13,37 +13,42 @@ an active-high enable, `VOUT` the pumped output.
 
 ## Operating conditions
 
-- `AVDD` is fixed at 1.8 V.
-- `CLK` is a 10 MHz rail-to-rail square wave with 1 ps edges and 50 % duty
-  cycle. `CLK` and `EN` are each driven through 50 ohm source resistance.
-- Enabled bench: `EN` high, `VOUT` drives 1 nF and a constant 50 uA to ground.
-  A 200 us transient starts from power-up; metrics use 190–200 us.
-- Disabled bench: `EN` held low from time zero with the clock running, `VOUT`
-  drives 1 nF only; supply current is averaged over 9–10 us.
-- Enabled and disabled supply currents come from separate runs through ideal
-  supply sense sources.
+- `AVDD` is fixed at 1.8 V, measured through an ideal sense source.
+- `CLK` is a 10 MHz rail-to-rail square wave with 1 ps edges and a duty cycle
+  anywhere from 45 % to 55 %. `CLK` and `EN` are each driven through 50 ohm
+  source resistance, and the current into each pin is measured.
+- Enabled: `EN` high, `VOUT` drives 1 nF and a constant load current to ground
+  of any value from 40 uA to 50 uA. A 200 us transient starts from power-up;
+  metrics use 190–200 us.
+- Disabled: `EN` held low from time zero with the clock running, `VOUT` drives
+  1 nF only; metrics use 9–10 us of a 10 us transient.
 
 ## Coverage
 
-Final grading uses eight representative process–temperature points at 1.8 V:
-`tt` 40 C; `ss` -10 C and 125 C; `ff` -10 C and 125 C; `sf` -10 C and 125 C;
-`fs` 40 C. They span all five Sky130 corners and the three temperatures and
-include the low-output, high-output and ripple/leakage stresses. This is a
-representative set, not the complete Cartesian product. Other supplies,
-clock rates and loads, startup beyond 200 us, efficiency and mismatch are not
-graded. The nominal `tt`/40 C point runs first; if it fails, every check fails.
+Grading runs representative process–temperature points at 1.8 V that span all
+five Sky130 corners and -10 C to 125 C, including the low-output, high-output
+and ripple/leakage stresses. At each point it runs several enabled conditions
+from the ranges above and one disabled run. This is representative coverage,
+not the complete Cartesian product. Other supplies, clock rates and loads,
+startup beyond 200 us, efficiency and mismatch are not graded. The `tt`/40 C
+point runs first; if it fails, every check fails.
 
 ## Scored checks
 
 Each check passes or fails; the reward is the fraction that pass. Every limit
-applies at every graded point.
+applies at every graded point and condition.
 
 | Check | Requirement |
 |---|---|
 | `pvt_loaded_output_voltage` | Enabled mean `VOUT` from 2.2 V through 2.8 V |
 | `pvt_output_ripple` | Enabled `max(VOUT) - min(VOUT)` at most 5 mVpp |
-| `pvt_enabled_current` | Enabled average supply current at most 200 uA |
-| `pvt_disabled_current` | Disabled average supply current at most 100 nA |
+| `pvt_enabled_current` | Enabled average `AVDD` current at most 200 uA |
+| `pvt_disabled_current` | Disabled average `AVDD` current at most 100 nA |
+| `pvt_clock_enable_power` | Average power delivered into `CLK` and into `EN`, each at most 1 uW, enabled and disabled |
+
+`AVDD` is the only supply. The clock and enable sources only drive logic: a
+circuit that draws its pump energy through `CLK` or `EN` fails
+`pvt_clock_enable_power`.
 
 ## Deliverable and eligibility
 
@@ -66,7 +71,8 @@ applies at every graded point.
 
 ## Public benches
 
-From `/app`, `ngspice -b testbench/tb_charge_pump_ff_hot.spi` and
-`ngspice -b testbench/tb_charge_pump_pd_ff_hot.spi` run the enabled and
-disabled benches at `ff`/1.8 V/125 C with the same metric definitions as
-grading. They do not apply the signoff rules.
+From `/app`, `ngspice -b testbench/tb_charge_pump_tt.spi` (enabled, 45 uA, 50 %
+duty) and `ngspice -b testbench/tb_charge_pump_pd_tt.spi` (disabled) run at
+`tt`/1.8 V/27 C with the same circuit and metric definitions as grading.
+Grading uses other conditions inside the ranges above. The public benches do
+not apply the signoff rules.
