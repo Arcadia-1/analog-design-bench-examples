@@ -1,0 +1,22 @@
+* Reference solution: unity-gain telescopic-cascode OTA (current-biased).
+* The 50 uA ibias reference sets a 133 uA tail (M5:M6 = 160:60) and a 10 uA
+* bias branch (M8:M6 = 12:60). The bias branch defines the PMOS cascode gate
+* (vcp) of a wide-swing cascode mirror and, through a matched 10 uA PMOS
+* source, a tail-referenced NMOS cascode gate (vcn) that follows the input
+* common mode. The high-impedance cascode output drives the external 1 pF load.
+.subckt unity_gain_buffer vss ibias vdd vin vout
+XM6 ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=3 w=60 nf=6
+XM5 tail ibias vss vss sky130_fd_pr__nfet_01v8 l=3 w=160 nf=20
+XM8 vcp ibias vss vss sky130_fd_pr__nfet_01v8 l=3 w=12 nf=2
+XMBP vcp vcp vdd vdd sky130_fd_pr__pfet_01v8 l=2 w=4 nf=1
+XMPB vcn vcp vdd vdd sky130_fd_pr__pfet_01v8 l=2 w=4 nf=1
+XMBN vcn vcn tail vss sky130_fd_pr__nfet_01v8 l=1.5 w=1 nf=1
+XM1 n1 vin tail vss sky130_fd_pr__nfet_01v8 l=0.8 w=64 nf=8
+XM2 n2 vout tail vss sky130_fd_pr__nfet_01v8 l=0.8 w=64 nf=8
+XM1C d1 vcn n1 vss sky130_fd_pr__nfet_01v8 l=0.15 w=16 nf=4
+XM2C vout vcn n2 vss sky130_fd_pr__nfet_01v8 l=0.15 w=16 nf=4
+XM3 p3 d1 vdd vdd sky130_fd_pr__pfet_01v8 l=0.5 w=32 nf=4
+XM4 p4 d1 vdd vdd sky130_fd_pr__pfet_01v8 l=0.5 w=32 nf=4
+XM3C d1 vcp p3 vdd sky130_fd_pr__pfet_01v8 l=0.15 w=16 nf=4
+XM4C vout vcp p4 vdd sky130_fd_pr__pfet_01v8 l=0.15 w=16 nf=4
+.ends unity_gain_buffer

@@ -1,0 +1,3 @@
+* Implement the charge pump here; the interface is defined in /app/spec/README.md.
+.subckt charge_pump_unregulate AVDD AVSS CLK EN VOUT
+.ends charge_pump_unregulate

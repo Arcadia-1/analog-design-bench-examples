@@ -1,0 +1,16 @@
+schema_version = 1
+
+# The simulator image every example builds on, from
+# https://github.com/Arcadia-1/circuit-bench-toolchains (images.lock.json).
+# It holds ngspice 46, the Sky130 models and Python with NumPy, and no checker
+# or scoring code: each task ships its checker in environment/analog-arena/ and
+# tests/analog-arena/.
+
+[sky130]
+# circuit-bench-sky130-ngspice:2.0.8
+simulator_image = "ghcr.io/arcadia-1/circuit-bench-sky130-ngspice@sha256:2da03dc7f1ead7ddc33f2f930a0487ae8618e51518009344584a98fca41a621d"
+
+[harbor]
+# Install the CLI with: uv tool install "harbor==0.25.0"
+version = "0.25.0"
+commit = "fdba28fc411e47e8765420a1a063b4918fce3def"
