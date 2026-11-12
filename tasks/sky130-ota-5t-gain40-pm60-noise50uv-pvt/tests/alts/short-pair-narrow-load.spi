@@ -1,0 +1,10 @@
+* Alternative sizing: shorter input pair (L = 0.8 um), narrower and shorter load mirror
+* (L = 1.2 um), and a 3.3:1 tail mirror at L = 2 um.
+.subckt ota_5t vss ibias vdd vinn vinp vout
+XINP nm vinp tail vss sky130_fd_pr__nfet_01v8 l=0.8 w=120 nf=20
+XINN vout vinn tail vss sky130_fd_pr__nfet_01v8 l=0.8 w=120 nf=20
+XLD nm nm vdd vdd sky130_fd_pr__pfet_01v8 l=1.2 w=40 nf=8
+XLO vout nm vdd vdd sky130_fd_pr__pfet_01v8 l=1.2 w=40 nf=8
+XTAIL tail ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=165 nf=25
+XBIAS ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=50 nf=5
+.ends ota_5t

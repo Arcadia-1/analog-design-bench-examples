@@ -1,3 +1,0 @@
-* Implement the OTA here; the interface is defined in /app/spec/README.md.
-.subckt sampling_feedback_ota vss iref vdd vinn vinp vocm voutn voutp
-.ends sampling_feedback_ota
