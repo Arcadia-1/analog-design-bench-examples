@@ -11,7 +11,7 @@ from utils import run_spice, write_results
 
 HERE = Path(__file__).resolve().parent
 MODEL = "/opt/sky130/continuous/sky130.lib.spice"
-CORNERS = ("tt", "ss", "ff")
+CORNERS = ("tt", "ss", "ff", "sf", "fs")
 SUPPLIES = (1.62, 1.80, 1.98)
 TEMPERATURES = (-40, 27, 85, 125)  # the order of the temperature vector in tb_op_ac_noise.spi
 GRID = list(product(CORNERS, SUPPLIES, TEMPERATURES))
@@ -19,11 +19,14 @@ NOMINAL = ("tt", 1.80, 27)
 NOMINAL_BIAS = "50u"
 # Reference-current tolerance inside the public 45-55 uA range.
 GRID_BIASES = ("45u", "55u")
-REJECTION_POINTS = (
-    (NOMINAL, NOMINAL_BIAS),
-    (("ss", 1.62, 125), "45u"),
-    (("ff", 1.98, -40), "55u"),
-    (("ss", 1.62, 85), "45u"),
+REJECTION_BIASES = ("45u", "50u", "55u")  # the order of the bias vector in the rejection benches
+# Rejection: the nominal point, then every corner at both supply and both temperature extremes, with
+# both ends of the reference-current tolerance.
+REJECTION_POINTS = ((NOMINAL, NOMINAL_BIAS),) + tuple(
+    ((corner, vdd, temp), bias)
+    for corner, vdd, temp, bias in product(
+        CORNERS, (SUPPLIES[0], SUPPLIES[-1]), (TEMPERATURES[0], TEMPERATURES[-1]), GRID_BIASES
+    )
 )
 REJECTION_BENCHES = ("cmrr", "psrr_plus", "psrr_minus")
 GRID_METRICS = ("power_w", "dc_gain_db", "ugb_hz", "phase_margin_deg", "input_noise_vrms")
@@ -45,6 +48,12 @@ def name(point: tuple[str, float, int], bias: str) -> str:
 def index(point: tuple[str, float, int]) -> int:
     _, vdd, temp = point
     return SUPPLIES.index(vdd) * len(TEMPERATURES) + TEMPERATURES.index(temp)
+
+
+def rejection_index(point: tuple[str, float, int], bias: str) -> int:
+    """The point's number in the rejection benches: 12 * supply index + 3 * temperature index + bias index."""
+    _, vdd, temp = point
+    return 12 * SUPPLIES.index(vdd) + 3 * TEMPERATURES.index(temp) + REJECTION_BIASES.index(bias)
 
 
 def edits(point: tuple[str, float, int], bias: str) -> dict[str, str]:
@@ -81,12 +90,25 @@ def run_grid(points: list[tuple[str, float, int]], bias: str) -> list[dict[str, 
 
 
 def run_rejection() -> list[dict[str, object]]:
+    """One ngspice process per bench and corner; the bench loops over that corner's points."""
     rows = []
     for bench in REJECTION_BENCHES:
-        for point, bias in REJECTION_POINTS:
+        for corner in CORNERS:
+            batch = [(point, bias) for point, bias in REJECTION_POINTS if point[0] == corner]
+            if not batch:
+                continue
+            replacements = edits(*batch[0]) | {
+                "set points = ( 16 )": "set points = ( " + " ".join(str(rejection_index(*item)) for item in batch) + " )"
+            }
             with tempfile.TemporaryDirectory(prefix=f"ota5t-{bench}-") as work:
-                values = run_spice(HERE / "benches" / f"tb_{bench}.spi", work, edits(point, bias))
-            rows.append({"bench": bench, "name": name(point, bias), **values})
+                values = run_spice(HERE / "benches" / f"tb_{bench}.spi", work, replacements)
+            metric = "cmrr_db_1khz" if bench == "cmrr" else "psrr_db_1khz"
+            for point, bias in batch:
+                row = {"bench": bench, "name": name(point, bias)}
+                key = f"r{rejection_index(point, bias)}_{metric}"
+                if key in values:
+                    row[metric] = values[key]
+                rows.append(row)
     return rows
 
 
@@ -135,7 +157,7 @@ def main() -> None:
             threshold(cmrr, len(REJECTION_POINTS), ("cmrr_40db", "cmrr_db_1khz", 40, True, 1, "dB")),
             threshold(psrr, 2 * len(REJECTION_POINTS), ("psrr_30db", "psrr_db_1khz", 30, True, 1, "dB")),
         ],
-        1 + 2 * len(CORNERS) + len(rejection),
+        1 + 2 * len(CORNERS) + len(REJECTION_BENCHES) * len(CORNERS),
         started,
     )
 

@@ -1,34 +1,6 @@
-Analog Arena Source-Available No-Derivatives License
-
 Copyright (c) 2026 Arcadia-1. All rights reserved.
 
-This repository and its contents are made available only under the limited
-permissions below.
-
-You may view, clone, and run an unmodified copy of this repository for personal,
-internal, non-commercial evaluation of Analog Arena tasks.
-
-For task evaluation, you may create private candidate netlists and local run
-artifacts that use the provided public testbenches. This exception does not
-permit publishing, redistributing, sublicensing, or otherwise making available
-modified copies or derivative versions of this repository.
-
-Except for the limited permissions above, you may not, without prior written
-permission from Arcadia-1:
-
-- modify, adapt, translate, or create derivative works from any repository
-  content;
-- publish, distribute, sublicense, sell, rent, lease, host as a service, or
-  otherwise make copies available to third parties;
-- remove or alter copyright, license, or attribution notices;
-- use this repository or its contents for commercial purposes.
-
-Sky130 PDK files are not included in this repository and remain governed by
-their own licenses.
-
-THE REPOSITORY IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
-CONNECTION WITH THIS REPOSITORY OR ITS USE.
+No license is granted. This repository and its contents may be copied, run,
+modified or used to write new tasks only by people Arcadia-1 has authorized,
+and only for the purposes Arcadia-1 has authorized. Any other use
+requires prior written permission from Arcadia-1.

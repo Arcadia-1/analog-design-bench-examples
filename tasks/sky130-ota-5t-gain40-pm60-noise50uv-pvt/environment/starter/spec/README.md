@@ -10,11 +10,7 @@ electrical contract here, the simulation rules in
 `.subckt ota_5t vss ibias vdd vinn vinp vout`, with exactly that pin order.
 `vdd` and `vss` are the supply rails, `vinp` and `vinn` the non-inverting and
 inverting inputs, `vout` the single-ended output. `ibias` is the only external
-bias port: the bench drives a reference current into it from `vdd`, from a
-current source with 1 Mohm output resistance.
-That current comes from the measured supply, so it counts toward power. The
-input sources are measured too: power the circuit takes from them counts
-toward the same limit.
+bias port: the bench drives the reference current into it from `vdd`.
 
 The design is a five-transistor OTA: a differential input pair, an active
 current-mirror load, and a tail current source mirrored from `ibias`. Grading
@@ -24,9 +20,9 @@ or inspect names, dimensions, hierarchy or connectivity.
 ## Operating conditions
 
 - Supply `vdd` from 1.62 V to 1.98 V; temperature from -40 C to 125 C; Sky130
-  corners `tt`, `ss` and `ff`.
-- Reference current into `ibias`: any value from 45 uA to 55 uA (the source's
-  1 Mohm output resistance adds about 1 uA).
+  corners `tt`, `ss`, `ff`, `sf` and `fs`.
+- Reference current into `ibias`: any value from 45 uA to 55 uA, from a current
+  source with 1 Mohm output resistance (which adds about 1 uA).
 - Input common-mode voltage: `vdd/2`.
 - Load: 1 pF from `vout` to `vss`.
 
@@ -34,10 +30,11 @@ or inspect names, dimensions, hierarchy or connectivity.
 
 Gain, bandwidth, phase margin, noise and power are graded on a grid that
 includes the corners of the supply and temperature ranges and interior
-temperatures, at all three process corners, at reference currents inside the
-45–55 uA range. Common-mode and supply rejection are graded at representative
-points of the same ranges. Mismatch, slew, large-signal settling and other
-loads are not graded.
+temperatures, at all five process corners, at reference currents inside the
+45–55 uA range. Common-mode and supply rejection are graded at the nominal
+point and at every process corner at both ends of the supply and temperature
+ranges, at both ends of the reference-current range. Mismatch, slew,
+large-signal settling and other loads are not graded.
 
 Grading starts with `tt`/1.80 V/27 C at 50 uA. If that point misses the gain
 or bandwidth limit, every check fails and nothing else runs. If any grid point
@@ -53,7 +50,7 @@ applies at every graded point.
 | `gain_40db` | Loop gain at 1 kHz at least 40 dB |
 | `ugb_100mhz` | Loop unity-gain frequency at least 100 MHz |
 | `phase_margin_60deg` | Phase margin at that frequency at least 60 degrees |
-| `power_0p5mw` | Power from the supply (including the `ibias` reference current) and from the input source, at most 0.5 mW |
+| `power_0p5mw` | Power at most 0.5 mW |
 | `noise_50uvrms` | Input-referred noise integrated from 10 Hz to 10 MHz at most 50 uVrms |
 | `cmrr_40db` | Open-loop common-mode rejection at 1 kHz at least 40 dB |
 | `psrr_30db` | Open-loop rejection of each supply rail at 1 kHz at least 30 dB |
@@ -65,9 +62,10 @@ Measurement definitions:
   measurement (`T = (Tv·Ti − 1)/(Tv + Ti + 2)`), swept from 10 Hz to 10 GHz at
   100 points per decade. UGB is the first falling 0 dB crossing; phase margin
   is 180 degrees plus the loop phase there. A loop without a crossing fails.
-- **Power** is `vdd` times the `vdd` current plus the `vinp` source voltage
-  times its current, at the unity-feedback operating point. A legal input
-  draws no DC current, so the second term is zero.
+- **Power** is `vdd` times the `vdd` current, which includes the `ibias`
+  reference current, plus the `vinp` source voltage times its current, at the
+  unity-feedback operating point. A legal input draws no DC current, so the
+  second term is zero.
 - **Noise** is the input-referred noise of the unity-feedback circuit at
   `vout`, integrated from 10 Hz to 10 MHz.
 - **CMRR** is the open-loop differential gain over the common-mode gain at
@@ -97,5 +95,18 @@ From `/app`, `ngspice -b testbench/tb_op_ac_noise_tt.spi`,
 `testbench/tb_cmrr_tt.spi`, `testbench/tb_psrr_plus_tt.spi` and
 `testbench/tb_psrr_minus_tt.spi` run every measurement at `tt`/1.80 V/27 C with
 50 uA, using the same circuit and metric definitions as grading. Grading runs
-them at other conditions inside the ranges above. The public benches do not
-apply the signoff rules.
+them at other conditions inside the ranges above.
+
+Plain `ngspice` does not apply the rules in [`signoff-rules.md`](signoff-rules.md).
+To run a public bench the way grading simulates it, use
+
+```bash
+python3 /app/signoff/run_bench.py testbench/tb_op_ac_noise_tt.spi
+```
+
+It applies the same rewrite as grading (model binning, diffusion geometry,
+multipliers, voltage ratings) and prints the ngspice output. A broken rule
+prints a `SIGNOFF RULE:` line and exits with code 3. Voltage ratings are checked
+at the `op` in `tb_op_ac_noise_tt.spi`; the rejection benches share that
+operating point. A clean run covers only the nominal point; grading checks the
+rules at every graded point.

@@ -1,9 +1,9 @@
 * Mutant: the tail mirror ratio is five times the reference, so the OTA burns more than 0.5 mW
 .subckt ota_5t vss ibias vdd vinn vinp vout
-XM1 nleft vinp tail vss sky130_fd_pr__nfet_01v8 l=1.0 w=96 nf=12
-XM2 vout vinn tail vss sky130_fd_pr__nfet_01v8 l=1.0 w=96 nf=12
-XM3 nleft nleft vdd vdd sky130_fd_pr__pfet_01v8 l=1.0 w=40 nf=8
-XM4 vout nleft vdd vdd sky130_fd_pr__pfet_01v8 l=1.0 w=40 nf=8
-XM5 tail ibias vss vss sky130_fd_pr__nfet_01v8 l=3 w=1000 nf=100
-XM6 ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=3 w=60 nf=6
+XM1 nleft vinp tail vss sky130_fd_pr__nfet_01v8 l=0.9 w=90 nf=10
+XM2 vout vinn tail vss sky130_fd_pr__nfet_01v8 l=0.9 w=90 nf=10
+XM3 nleft nleft vdd vdd sky130_fd_pr__pfet_01v8 l=0.9 w=100 nf=20
+XM4 vout nleft vdd vdd sky130_fd_pr__pfet_01v8 l=0.9 w=100 nf=20
+XM5 tail ibias vss vss sky130_fd_pr__nfet_01v8 l=1.5 w=1500 nf=150
+XM6 ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=1.5 w=90 nf=9
 .ends ota_5t

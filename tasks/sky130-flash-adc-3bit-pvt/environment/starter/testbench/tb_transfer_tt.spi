@@ -1,0 +1,83 @@
+* Public transfer bench, tt / 1.80 V / 27 C.
+* Ascending code centers, then inputs 0.3 LSB above and below each threshold, each approached from the
+* neighbouring code. Grading uses its own order, approaching every threshold from distant codes.
+* expected codes (conversions 0..25, first 2 are warm-up): 7 0 0 1 2 3 4 5 6 7 0 7 1 0 2 1 3 2 4 3 5 4 6 5 7 6
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+.options method=gear reltol=1e-3 abstol=1e-12 vntol=1e-6 chgtol=1e-15
+.temp 27
+VSS vss 0 0
+VSUP vdd vss 1.8
+VRP vrefp_s vss 1.4
+RRP vrefp_s vrefp 10
+VRN vrefn_s vss 0.6
+RRN vrefn_s vrefn 10
+VCK clk_s vss PULSE(0 1.8 10n 0.3n 0.3n 9.4n 20n)
+RCK clk_s clk 50
+VSIG vin vss PWL(0 1.35
++ 20n 1.35 20.2n 0.65
++ 40n 0.65 40.2n 0.65
++ 60n 0.65 60.2n 0.75
++ 80n 0.75 80.2n 0.85
++ 100n 0.85 100.2n 0.95
++ 120n 0.95 120.2n 1.05
++ 140n 1.05 140.2n 1.15
++ 160n 1.15 160.2n 1.25
++ 180n 1.25 180.2n 1.35
++ 200n 1.35 200.2n 0.65
++ 220n 0.65 220.2n 1.35
++ 240n 1.35 240.2n 0.73
++ 260n 0.73 260.2n 0.67
++ 280n 0.67 280.2n 0.83
++ 300n 0.83 300.2n 0.77
++ 320n 0.77 320.2n 0.93
++ 340n 0.93 340.2n 0.87
++ 360n 0.87 360.2n 1.03
++ 380n 1.03 380.2n 0.97
++ 400n 0.97 400.2n 1.13
++ 420n 1.13 420.2n 1.07
++ 440n 1.07 440.2n 1.23
++ 460n 1.23 460.2n 1.17
++ 480n 1.17 480.2n 1.33
++ 500n 1.33 500.2n 1.27)
+XADC vss vdd vrefn vrefp clk vin b2 b1 b0 flash_adc_3bit
+CB2 b2 vss 15f
+CB1 b1 vss 15f
+CB0 b0 vss 15f
+
+.control
+set noaskquit
+tran 50p 531n
+* net power into the circuit through every pin: vdd, vrefp, vrefn, clk and vin
+let p_vdd = -v(vdd)*i(vsup)
+let p_vrefp = -v(vrefp)*i(vrp)
+let p_vrefn = -v(vrefn)*i(vrn)
+let p_clk = -v(clk)*i(vck)
+let p_vin = -v(vin)*i(vsig)
+let p_total = p_vdd+p_vrefp+p_vrefn+p_clk+p_vin
+meas tran power avg p_total from=50n to=530n
+meas tran power_vdd avg p_vdd from=50n to=530n
+meas tran power_vrefp avg p_vrefp from=50n to=530n
+meas tran power_vrefn avg p_vrefn from=50n to=530n
+meas tran power_clk avg p_clk from=50n to=530n
+meas tran power_vin avg p_vin from=50n to=530n
+* conversion k: rising clk edge at 10n+k*20n; code read 19 ns later; levels held from 9.5 ns to 19 ns
+let k = 2
+while k < 26
+  let t_read = 10n+k*20n+19n
+  let t_hold = 10n+k*20n+9.5n
+  set kk = $&k
+  meas tran s{$kk}_b2 find v(b2) at=$&t_read
+  meas tran s{$kk}_b1 find v(b1) at=$&t_read
+  meas tran s{$kk}_b0 find v(b0) at=$&t_read
+  meas tran s{$kk}_b2_min min v(b2) from=$&t_hold to=$&t_read
+  meas tran s{$kk}_b2_max max v(b2) from=$&t_hold to=$&t_read
+  meas tran s{$kk}_b1_min min v(b1) from=$&t_hold to=$&t_read
+  meas tran s{$kk}_b1_max max v(b1) from=$&t_hold to=$&t_read
+  meas tran s{$kk}_b0_min min v(b0) from=$&t_hold to=$&t_read
+  meas tran s{$kk}_b0_max max v(b0) from=$&t_hold to=$&t_read
+  let k = k+1
+end
+quit
+.endc
+.end

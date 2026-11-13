@@ -1,0 +1,9 @@
+* Deliverable: the 3-bit flash ADC. Pin order is fixed; see /app/spec/README.md.
+* Local parameter-free helper subcircuits (comparator, latch, gates) may be defined above the DUT.
+* Primitive examples:
+* XN d g s b sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=1
+* XP d g s b sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
+* R1 a b 500
+* C1 a b 100f
+.subckt flash_adc_3bit vss vdd vrefn vrefp clk vin b2 b1 b0
+.ends flash_adc_3bit

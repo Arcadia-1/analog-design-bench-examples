@@ -1,0 +1,14 @@
+* Alternative structure: self-cascode (composite) PMOS mirror load. Each load device is
+* two stacked PMOS sharing the mirror gate (L = 0.6 um at the rail, L = 0.3 um, twice as
+* wide, below it), which raises the output resistance and so the loop gain above the
+* reference's. NMOS pair and tail mirror as in the reference.
+.subckt ota_5t vss ibias vdd vinn vinp vout
+XINP nleft vinp tail vss sky130_fd_pr__nfet_01v8 l=0.9 w=90 nf=10
+XINN vout vinn tail vss sky130_fd_pr__nfet_01v8 l=0.9 w=90 nf=10
+XLDT nd nleft vdd vdd sky130_fd_pr__pfet_01v8 l=0.6 w=70 nf=14
+XLDB nleft nleft nd vdd sky130_fd_pr__pfet_01v8 l=0.3 w=140 nf=14
+XLOT no nleft vdd vdd sky130_fd_pr__pfet_01v8 l=0.6 w=70 nf=14
+XLOB vout nleft no vdd sky130_fd_pr__pfet_01v8 l=0.3 w=140 nf=14
+XTAIL tail ibias vss vss sky130_fd_pr__nfet_01v8 l=1.5 w=300 nf=30
+XBIAS ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=1.5 w=90 nf=9
+.ends ota_5t
