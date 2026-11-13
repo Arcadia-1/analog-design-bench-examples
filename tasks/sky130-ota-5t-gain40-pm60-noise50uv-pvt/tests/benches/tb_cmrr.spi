@@ -31,12 +31,45 @@ CLDM vout_dm vss 1p
 
 .control
 set noaskquit
-ac dec 50 10 10Meg
-let adm = v(vout_dm)/(v(vinp_dm)-v(vinn_dm))
-let vcm = 0.5*(v(vinp_cm)+v(vinn_cm))
-let acm = v(vout_cm)/vcm
-let cmrr_db = db(adm/acm)
-meas ac cmrr_db_1khz FIND cmrr_db AT=1k
+let supplies = vector(3)
+let supplies[0] = 1.62
+let supplies[1] = 1.80
+let supplies[2] = 1.98
+let temperatures = vector(4)
+let temperatures[0] = -40
+let temperatures[1] = 27
+let temperatures[2] = 85
+let temperatures[3] = 125
+let biases = vector(3)
+let biases[0] = 45u
+let biases[1] = 50u
+let biases[2] = 55u
+
+* point = 12*supply index + 3*temperature index + bias index
+set points = ( 16 )
+foreach run $points
+  let supply_index = floor($run/12)
+  let temperature_index = floor(($run - 12*supply_index)/3)
+  let bias_index = $run - 12*supply_index - 3*temperature_index
+  let supply = supplies[supply_index]
+  let temperature = temperatures[temperature_index]
+  let bias = biases[bias_index]
+  let common_mode = supply/2
+  set prefix = r$run
+  set temp = $&temperature
+  alter VDD = $&supply
+  alter IBIASCM = $&bias
+  alter IBIASDM = $&bias
+  alter VCMP = $&common_mode
+  alter VDMP = $&common_mode
+  ac dec 50 10 10Meg
+  let adm = v(vout_dm)/(v(vinp_dm)-v(vinn_dm))
+  let vcm = 0.5*(v(vinp_cm)+v(vinn_cm))
+  let acm = v(vout_cm)/vcm
+  let cmrr_db = db(adm/acm)
+  meas ac {$prefix}_cmrr_db_1khz FIND cmrr_db AT=1k
+  destroy all
+end
 quit
 .endc
 .end

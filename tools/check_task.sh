@@ -25,6 +25,12 @@ work=$(mktemp -d "${TMPDIR:-/tmp}/check-$id-XXXXXX")
      && test -s /opt/analog-arena/SKY130_NETLIST_GUIDE.md && command -v ngspice >/dev/null' \
     || { echo "FAIL agent image: starter, spec, checker, guide or ngspice missing"; exit 1; }
 
+# The public signoff runner must apply exactly the grader's rules.
+for f in signoff_ngspice.py sky130_signoff.py; do
+    cmp -s "$task/tests/$f" "$task/environment/starter/signoff/$f" \
+        || { echo "FAIL environment/starter/signoff/$f differs from tests/$f"; exit 1; }
+done
+
 cases=("reference=$task/solution/circuit.spi" "starter=$task/environment/starter/circuit.spi")
 for f in "$task"/tests/mutants/*.spi; do [ -e "$f" ] && cases+=("mutant-$(basename "$f" .spi)=$f"); done
 for f in "$task"/tests/alts/*.spi; do [ -e "$f" ] && cases+=("alt-$(basename "$f" .spi)=$f"); done
