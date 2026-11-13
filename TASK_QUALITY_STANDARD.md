@@ -124,7 +124,17 @@ workdir = "/app"
 
 - `[metadata]` holds only the four taxonomy fields above. Do not add maturity levels, maturity notes, display titles or descriptions, checker flags, or other repository-private keys; status and evidence belong in PRs and audit reports, and checker flags belong in `tests/test.sh`.
 - The agent runs as an unprivileged user (`agent`, uid 1000) that owns `/app`; the verifier runs as root. The environment image creates that user.
-- Benchmark runs use mini-swe-agent with a 2-hour agent timeout (`[agent] timeout_sec = 7200`) and a limit of 100 steps (one model call is one step), with no cost limit. Harbor's `task.toml` has no step field: the run's mini-swe-agent configuration sets `agent.step_limit: 100` and `agent.cost_limit: 0`.
+- Benchmark runs use mini-swe-agent with a 2-hour agent timeout (`[agent] timeout_sec = 7200`) and a limit of 100 steps (one model call is one step), with no cost limit. Harbor's `task.toml` has no step field, so the step limit is set when the run starts, and only this command gives a comparable run. Use the Harbor release pinned in `toolchains.toml`; `<provider>/<model>` is a LiteLLM model name, and the model's API key and endpoint come from `.env` (never write a key into a command or a file in the repository). Other agents and settings are not benchmark runs.
+
+  ```bash
+  harbor run \
+    --agent mini-swe-agent \
+    --model '<provider>/<model>' \
+    --agent-kwarg 'config={"agent": {"step_limit": 100, "cost_limit": 0}}' \
+    --agent-kwarg cost_limit=0 \
+    --env-file .env \
+    --path <task-directory>
+  ```
 
 - Every `task.toml` must parse with the pinned upstream Harbor `harbor.models.task.config.TaskConfig`; a repository-written checker does not replace that parser. The Harbor release is pinned in the `[harbor]` table of `toolchains.toml`. Validation records the exact Harbor commit and version.
 - Upstream schema failures and Analog Arena policy failures are reported separately as `upstream_schema_error` and `repository_policy_error`.
