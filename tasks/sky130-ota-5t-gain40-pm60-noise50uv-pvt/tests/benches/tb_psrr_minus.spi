@@ -11,6 +11,7 @@
 VSS vss 0 0 AC 1
 VDD vdd 0 {supply}
 IBIASPS vdd ibias_ps {ibias}
+RIBIASPS vdd ibias_ps 1Meg
 VPSP vinp_ps 0 {supply/2}
 VPSN psn_ac 0 0
 CPSN psn_ac vinn_ps 1
@@ -21,6 +22,7 @@ CLPS vout_ps 0 1p
 VSSREF vss_ref 0 0
 VDDREF vdd_ref vss_ref {supply}
 IBIASREF vdd_ref ibias_ref {ibias}
+RIBIASREF vdd_ref ibias_ref 1Meg
 VREFP vinp_ref vss_ref {supply/2} AC 0.5
 VREFN refn_ac vss_ref 0 AC -0.5
 CREFN refn_ac vinn_ref 1

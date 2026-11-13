@@ -9,7 +9,8 @@ electrical contract here, the simulation rules in
 
 `.subckt flash_adc_4bit clk dout3 dout2 dout1 dout0 vss vdd vinn vinp vrefn vrefp`,
 with exactly that pin order. `vdd` is the supply, `vss` ground, `vrefp`
-(1.8 V) and `vrefn` (0 V) the conversion references, `vinp`/`vinn` the
+(1.8 V, from a source with 10 ohm output resistance) and `vrefn` (0 V) the
+conversion references, `vinp`/`vinn` the
 differential input, `clk` the only clock, `dout3` (MSB) to `dout0` the output
 code. Each output drives 10 fF.
 
@@ -64,6 +65,12 @@ Measurement definitions:
   exactly 15 adjacent transitions. The first and last transition levels define
   the endpoint LSB; INL is the deviation of each transition from that line,
   DNL the deviation of each code width from one LSB.
+- **Why 22 dB and 26 dB.** An ideal 4-bit quantizer gives 6.02·4 + 1.76 =
+  25.8 dB SNDR at full scale; on this record (1.7 V of the 1.8 V range, 32
+  samples) it gives 25.3 dB SNDR and 30.0 dB SFDR. 22 dB allows about half a
+  bit of loss (ENOB at least 3.4 bits) across PVT; 26 dB allows 4 dB of spur
+  growth, so a code-dependent error that adds one large spur fails even
+  when the total SNDR passes.
 - **SNDR and SFDR.** A full-scale (1.7 V differential peak) coherent sine is
   converted for 32 samples after three warm-up conversions. SNDR is the
   signal-bin power over all other non-DC power below Nyquist; SFDR is the

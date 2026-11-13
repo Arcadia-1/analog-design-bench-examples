@@ -14,6 +14,7 @@ VSS vss 0 0
 VDD vdd vss {supply}
 
 IBIASCM vdd ibias_cm {ibias}
+RIBIASCM vdd ibias_cm 1Meg
 VCMP vinp_cm vss {supply/2} AC 1
 VCMN cmn_ac vss 0 AC 1
 CCMN cmn_ac vinn_cm 1
@@ -22,6 +23,7 @@ XCM vss ibias_cm vdd vinn_cm vinp_cm vout_cm ota_5t
 CLCM vout_cm vss 1p
 
 IBIASDM vdd ibias_dm {ibias}
+RIBIASDM vdd ibias_dm 1Meg
 VDMP vinp_dm vss {supply/2} AC 0.5
 VDMN dmn_ac vss 0 AC -0.5
 CDMN dmn_ac vinn_dm 1

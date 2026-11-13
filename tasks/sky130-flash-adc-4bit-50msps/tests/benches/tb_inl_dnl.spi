@@ -6,7 +6,8 @@
 .temp 27
 VSS vss 0 0
 VDD vdd vss 1.8
-VREFP vrefp vss 1.8
+VREFP vrefp_src vss 1.8
+RREFP vrefp_src vrefp 10
 VINP vinp vss PWL(0 0.05 1800n 1.75)
 VINN vinn vss PWL(0 1.75 1800n 0.05)
 VCLK clk_src vss PULSE(0 1.8 1p 20p 20p 9.96n 20n)
