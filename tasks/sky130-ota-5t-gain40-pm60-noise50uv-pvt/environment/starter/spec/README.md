@@ -10,7 +10,8 @@ electrical contract here, the simulation rules in
 `.subckt ota_5t vss ibias vdd vinn vinp vout`, with exactly that pin order.
 `vdd` and `vss` are the supply rails, `vinp` and `vinn` the non-inverting and
 inverting inputs, `vout` the single-ended output. `ibias` is the only external
-bias port: the bench drives a constant reference current into it from `vdd`.
+bias port: the bench drives a reference current into it from `vdd`, from a
+current source with 1 Mohm output resistance.
 That current comes from the measured supply, so it counts toward power. The
 input sources are measured too: power the circuit takes from them counts
 toward the same limit.
@@ -24,7 +25,8 @@ or inspect names, dimensions, hierarchy or connectivity.
 
 - Supply `vdd` from 1.62 V to 1.98 V; temperature from -40 C to 125 C; Sky130
   corners `tt`, `ss` and `ff`.
-- Reference current into `ibias`: any constant value from 45 uA to 55 uA.
+- Reference current into `ibias`: any value from 45 uA to 55 uA (the source's
+  1 Mohm output resistance adds about 1 uA).
 - Input common-mode voltage: `vdd/2`.
 - Load: 1 pF from `vout` to `vss`.
 
