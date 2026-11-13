@@ -1,0 +1,46 @@
+* FD-10  Supply rejection
+* Spec 3.1.3.3, Fig. 31: the FD-01 network with its inputs at VCOM and an AC
+* source on the supply.  Copy P: AC 1 on VDD; copy N: AC 1 on VSS.  The
+* supply-to-output-CM transfer is what the spec observes (PSRR_cm); the
+* supply-to-DM transfer (PSRR_dm) is zero for a symmetric design.
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-6 abstol=1e-16 vntol=1e-10
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+VCM vcm 0 {{VCM}}
+* Copy P
+VDDP vddp 0 DC {{VDD}} AC 1
+IBIASP vddp ibiasp {{IBIAS}}
+R1P vcm inpp {{R_NET}}
+R2P inpp onp {{R_NET}}
+R3P vcm innp {{R_NET}}
+R4P innp opp {{R_NET}}
+XP vss ibiasp vddp vcmpin_p inpp innp opp onp {{DUT}}
+RVCM_P vcm vcmpin_p 1k
+RLPP opp vcm {{RL}}
+CLPP opp 0 {{CL}}
+RLNP onp vcm {{RL}}
+CLNP onp 0 {{CL}}
+* Copy N
+VSSN vssn 0 DC 0 AC 1
+IBIASN vdd ibiasn {{IBIAS}}
+R1N vcm inpn {{R_NET}}
+R2N inpn onn {{R_NET}}
+R3N vcm innn {{R_NET}}
+R4N innn opn {{R_NET}}
+XN vssn ibiasn vdd vcmpin_n inpn innn opn onn {{DUT}}
+RVCM_N vcm vcmpin_n 1k
+RLPN opn vcm {{RL}}
+CLPN opn 0 {{CL}}
+RLNN onn vcm {{RL}}
+CLNN onn 0 {{CL}}
+.control
+set filetype=ascii
+ac dec 50 10m 1G
+write {{RAW}} v(opp) v(onp) v(opn) v(onn)
+.endc
+.end

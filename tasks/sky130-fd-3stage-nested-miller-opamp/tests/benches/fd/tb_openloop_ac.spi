@@ -1,0 +1,54 @@
+* FD-07  Open-loop differential gain AVO, GBW, PM, GM; input impedance; RO
+* Spec 3.1.3.1, Fig. 29: VINP = AC 1/2 at 0 degrees, VINN = AC 1/2 at 180
+* degrees, Ad = (Vop - Von)/Vid.  A DC-only differential servo (E sources +
+* L = 1 GH, C = 1 GF to ground, as in Fig. 7) sets the bias, so the amplifier
+* is open-loop at every analysed frequency.  AC 1 mHz .. 10 GHz.
+* Copy A (RL/CL load): gain, phase, input admittance i(vapa).
+* Copy B (no load): AC 1/2 A into Vop and out of Von; |Vop - Von| per ampere is
+*   each output's open-loop resistance RO.
+* IOLP/IOLN: DC load current per output of copy A (0 A nominally; +/- for 3.3.3).
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-5 abstol=1e-15 vntol=1e-9
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+VCM vcm 0 {{VCM}}
+* Copy A
+IBIASA vdd ibiasa {{IBIAS}}
+EPA spa vcm outn outp 0.5
+ENA sna vcm outp outn 0.5
+LPA spa xpa 1G
+CPA xpa 0 1G
+LNA sna xna 1G
+CNA xna 0 1G
+VAPA inpa xpa DC 0 AC 0.5
+VANA inna xna DC 0 AC 0.5 180
+XA vss ibiasa vdd vcmpin_a inpa inna outp outn {{DUT}}
+RVCM_A vcm vcmpin_a 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+IOLP 0 outp DC {{IOUT_DC}}
+IOLN 0 outn DC {{IOUT_DC}}
+* Copy B
+IBIASB vdd ibiasb {{IBIAS}}
+EPB spb vcm onb opb 0.5
+ENB snb vcm opb onb 0.5
+LPB spb inpb 1G
+CPB inpb 0 1G
+LNB snb innb 1G
+CNB innb 0 1G
+XB vss ibiasb vdd vcmpin_b inpb innb opb onb {{DUT}}
+RVCM_B vcm vcmpin_b 1k
+IOPB 0 opb DC 0 AC 0.5
+IONB 0 onb DC 0 AC 0.5 180
+.control
+set filetype=ascii
+ac dec 100 1m 10G
+write {{RAW}} v(outp) v(outn) i(vapa) v(opb) v(onb)
+.endc
+.end

@@ -1,0 +1,32 @@
+* FD-26  Supply surge stability
+* Spec 3.3.4.2: the FD-01 application at VCOM with a square wave of
+* +/-{{RIPPLE}} V ({{T_EDGE}} s edges) on VDD at {{FREQ}} Hz.  The output common
+* mode and Vod must recover after every edge without oscillating.
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-5 abstol=1e-15 vntol=1e-9 method=gear
+VDD vdd 0 PULSE({{VDD_LO}} {{VDD_HI}} {{T_DELAY}} {{T_EDGE}} {{T_EDGE}} {{T_WIDTH}} {{T_PERIOD}})
+VSS vss 0 0
+IBIAS vdd ibias {{IBIAS}}
+VCM vcm 0 {{VCM}}
+VI vi vcm 0
+R1 vi inp {{R_NET}}
+R2 inp outn {{R_NET}}
+R3 vi inn {{R_NET}}
+R4 inn outp {{R_NET}}
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+.control
+set filetype=ascii
+tran {{TSTEP}} {{TSTOP}} 0 {{TMAX}}
+let ocm = (v(outp) + v(outn)) / 2
+write {{RAW}} v(outp) v(outn) ocm v(vdd)
+.endc
+.end

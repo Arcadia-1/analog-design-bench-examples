@@ -1,0 +1,83 @@
+* Mutant: an extra 600 fF from each output to vss. Fails the peak code table and in-band flatness.
+.subckt ctle_28g vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn
+XREF iref iref vss vss sky130_fd_pr__nfet_01v8_lvt l=0.5 w=40 nf=8
+XTBP tbp iref vss vss sky130_fd_pr__nfet_01v8_lvt l=0.5 w=1000 nf=200 m=6
+XTCP sp vcg tbp vss sky130_fd_pr__nfet_01v8_lvt l=0.15 w=200 nf=40
+XTBN tbn iref vss vss sky130_fd_pr__nfet_01v8_lvt l=0.5 w=1000 nf=200 m=6
+XTCN sn vcg tbn vss sky130_fd_pr__nfet_01v8_lvt l=0.15 w=200 nf=40
+XCPM vcg pbd vdd vdd sky130_fd_pr__pfet_01v8 l=0.5 w=10 nf=2
+XCREP vcg vcg vcs vss sky130_fd_pr__nfet_01v8_lvt l=0.15 w=3.333 nf=1
+RCB vcs vss 1500
+CCG vcg vss 10p
+XBN pbd iref vss vss sky130_fd_pr__nfet_01v8_lvt l=0.5 w=40 nf=8
+XBPD pbd pbd vdd vdd sky130_fd_pr__pfet_01v8 l=0.5 w=10 nf=2
+XBPM vbg pbd vdd vdd sky130_fd_pr__pfet_01v8 l=0.5 w=10 nf=2
+XBREP vbg vbg vbs vss sky130_fd_pr__nfet_01v8_lvt l=0.15 w=2 nf=1
+RBH vbs vss 5000
+CBG vbg vss 10p
+LAP vinp tcp 2.58333e-10
+LBP tcp ttp 2.58333e-10
+KTP LAP LBP 0.5
+CBP vinp ttp 2.58333e-14
+RTP ttp vocm 50
+CCP tcp gp 2e-11
+RBP gp vbg 1e+06
+LAN vinn tcn 2.58333e-10
+LBN tcn ttn 2.58333e-10
+KTN LAN LBN 0.5
+CBN vinn ttn 2.58333e-14
+RTN ttn vocm 50
+CCN tcn gn 2e-11
+RBN gn vbg 1e+06
+XMP dp gp sp vss sky130_fd_pr__nfet_01v8_lvt l=0.15 w=300 nf=60
+XMN dn gn sn vss sky130_fd_pr__nfet_01v8_lvt l=0.15 w=300 nf=60
+CNP gp dn 4e-14
+CNN gn dp 4e-14
+LPP vddi xp 2.4e-10
+RLP xp dp 40
+LOP dp voutn 2.2e-10
+LPN vddi xn 2.4e-10
+RLN xn dn 40
+LON dn voutp 2.2e-10
+RS0 sp sn 410
+RG1A sp g1a 398.78
+XG1A g1a gain_b1 g1b vss sky130_fd_pr__nfet_01v8 l=0.15 w=40 nf=8
+XG1B g1a gain_b0 g1b vss sky130_fd_pr__nfet_01v8 l=0.15 w=40 nf=8
+RG1B g1b sn 398.78
+RG2A sp g2a 339.34
+XG2 g2a gain_b1 g2b vss sky130_fd_pr__nfet_01v8 l=0.15 w=40 nf=8
+RG2B g2b sn 339.34
+RG3A sp g3a 207.128
+XG3A g3a gain_b1 g3m vss sky130_fd_pr__nfet_01v8 l=0.15 w=80 nf=16
+XG3B g3m gain_b0 g3b vss sky130_fd_pr__nfet_01v8 l=0.15 w=80 nf=16
+RG3B g3b sn 207.128
+CP1A sp p1a 1.4e-13
+XP1A p1a peak_b1 p1b vss sky130_fd_pr__nfet_01v8 l=0.15 w=14 nf=4
+XP1B p1a peak_b0 p1b vss sky130_fd_pr__nfet_01v8 l=0.15 w=14 nf=4
+CP1B p1b sn 1.4e-13
+RP1A p1a vss 20k
+RP1B p1b vss 20k
+CP2A sp p2a 6.5e-13
+XP2 p2a peak_b1 p2b vss sky130_fd_pr__nfet_01v8 l=0.15 w=65 nf=13
+CP2B p2b sn 6.5e-13
+RP2A p2a vss 20k
+RP2B p2b vss 20k
+CP3A sp p3a 2.6e-12
+XP3A p3a peak_b1 p3m vss sky130_fd_pr__nfet_01v8 l=0.15 w=520 nf=104
+XP3B p3m peak_b0 p3b vss sky130_fd_pr__nfet_01v8 l=0.15 w=520 nf=104
+CP3B p3b sn 2.6e-12
+RP3A p3a vss 20k
+RP3B p3b vss 20k
+RCP voutp cms 10000
+RCN voutn cms 10000
+XE1 ea1 cms et vss sky130_fd_pr__nfet_01v8 l=0.5 w=10 nf=2
+XE2 ea2 vocm et vss sky130_fd_pr__nfet_01v8 l=0.5 w=10 nf=2
+XEP1 ea1 ea1 vdd vdd sky130_fd_pr__pfet_01v8 l=0.5 w=10 nf=2
+XEP2 ea2 ea1 vdd vdd sky130_fd_pr__pfet_01v8 l=0.5 w=10 nf=2
+XET et iref vss vss sky130_fd_pr__nfet_01v8_lvt l=0.5 w=80 nf=16
+CCMP ea2 vdd 2e-12
+XPASS vddi ea2 vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=1000 nf=200 m=4
+CVDDI vddi vss 2e-11
+CXP voutp vss 6e-13
+CXN voutn vss 6e-13
+.ends ctle_28g

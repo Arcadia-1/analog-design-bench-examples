@@ -1,0 +1,42 @@
+* Open-loop differential AC at tt / 1.8 V / 27 C.  Each input is biased
+* through L = 1 GH from a differential-only servo (E sources acting on Vod
+* around VCM) while C = 1 GF grounds it for AC, so the DC point is
+* closed-loop and every analysed frequency is open-loop.  AC: +/-0.5 V
+* differential at the inputs; the gain is Vod / Vid.  Load 2 pF || 1 Mohm on
+* each output.  Prints the low-frequency gain, the unity-gain frequency and
+* the phase margin.  Run with `ngspice -b testbench/tb_openloop_ac_tt.spi`.
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+.options reltol=1e-5 abstol=1e-15 vntol=1e-9
+.temp 27
+VDD vdd 0 1.8
+VSS vss 0 0
+IBIAS vdd ibias 10u
+VCM vcm 0 0.9
+EP sp vcm outn outp 0.5
+EN sn vcm outp outn 0.5
+LP sp xp 1G
+CP xp 0 1G
+LN sn xn 1G
+CN xn 0 1G
+VAP inp xp DC 0 AC 0.5
+VAN inn xn DC 0 AC 0.5 180
+XDUT vss ibias vdd vcmpin inp inn outp outn fd3_nmc_opamp
+RVCM vcm vcmpin 1k
+RLP outp vcm 1meg
+CLP outp 0 2p
+RLN outn vcm 1meg
+CLN outn 0 2p
+.control
+set noaskquit
+ac dec 50 1m 10G
+let gain_db = db(v(outp) - v(outn))
+let phase_deg = 180/PI*ph(v(outp) - v(outn))
+meas ac avo_db FIND gain_db AT=1m
+meas ac gbw_hz WHEN gain_db=0 FALL=1
+meas ac phase_at_gbw_deg FIND phase_deg WHEN gain_db=0 FALL=1
+let pm_deg = 180 + phase_at_gbw_deg
+print pm_deg
+quit
+.endc
+.end

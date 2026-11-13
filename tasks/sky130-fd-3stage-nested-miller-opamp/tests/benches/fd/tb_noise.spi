@@ -1,0 +1,41 @@
+* FD-12  Noise
+* Spec 3.2.2.6 for the FD class: capacitive gain -1 (C = {{C_NET}} F, the
+* switched-capacitor application of Fig. 32); RL/CL load.  The inputs get
+* their DC bias from a differential-only servo (E sources + L = 1 TH, whose
+* corner with the 1 pF network is 0.16 Hz) that pins their common mode at
+* VCOM: feeding each output straight back to the
+* opposite input would also close a positive common-mode loop that can latch
+* the amplifier off.  Noise of Vop - Von referred to VIP, 0.1 Hz .. 1 GHz.
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-5 abstol=1e-15 vntol=1e-9
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+IBIAS vdd ibias {{IBIAS}}
+VCM vcm 0 {{VCM}}
+VIP vip vcm DC 0 AC 1
+VIN vin vcm 0
+C1 vip inp {{C_NET}}
+C2 inp outn {{C_NET}}
+C3 vin inn {{C_NET}}
+C4 inn outp {{C_NET}}
+EP sp vcm outn outp 0.5
+EN sn vcm outp outn 0.5
+LP sp inp 1T
+LN sn inn 1T
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+.control
+set filetype=ascii
+noise v(outp,outn) vip dec 20 0.1 1G
+setplot noise1
+write {{RAW}} onoise_spectrum inoise_spectrum
+.endc
+.end

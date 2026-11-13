@@ -1,0 +1,45 @@
+* FD-04  Input common-mode range ICMR of the amplifier itself
+* The inputs sit at V(cms), stepped 0 .. VDD; a DC-only differential servo
+* (E sources + L = 1 GH, 1 GF to ground, as in Fig. 7) nulls Vop - Von so the
+* amplifier stays open-loop for AC.  At every step: OP, then one AC point at
+* {{F_LOW}} Hz with AC 0.5 / 0.5 at 180 degrees in series with the two inputs.
+* A symmetric FD amplifier has no CM-to-DM conversion, so ICMR is the range
+* where the differential gain stays within 6 dB of its value at VCOM and the
+* output common mode stays within 50 mV of VCOM.
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-5 abstol=1e-15 vntol=1e-9
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+IBIAS vdd ibias {{IBIAS}}
+VCM vcm 0 {{VCM}}
+VCMS cms 0 {{VCM}}
+EP sp cms outn outp 0.5
+EN sn cms outp outn 0.5
+LP sp xp 1G
+CP xp 0 1G
+LN sn xn 1G
+CN xn 0 1G
+VAP inp xp DC 0 AC 0.5
+VAN inn xn DC 0 AC 0.5 180
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+.control
+set filetype=ascii
+set appendwrite
+foreach v {{VCM_LIST}}
+  alter vcms dc = $v
+  op
+  write {{RAW}} v(outp) v(outn) v(cms)
+  ac lin 1 {{F_LOW}} {{F_LOW}}
+  write {{RAW}} v(outp) v(outn)
+end
+.endc
+.end

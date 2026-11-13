@@ -1,0 +1,32 @@
+* FD-29  Operating supply range, DC sweep (spec 3.3.2.1) for the FD-01
+* application: inputs and vcm at VDD/2, VDD swept 0 .. {{VDD_MAX}} V in 10 mV steps,
+* bias current scaled with VDD.  A {{V_PROBE}} V differential input is applied so a
+* dead amplifier cannot pass: it works while Vod tracks the input and the
+* output common mode tracks VDD/2, each within 10 mV of its value at nominal VDD.
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-6 abstol=1e-15 vntol=1e-9
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+EVCM vcm 0 vdd 0 {{VCM_FRACTION}}
+BIBIAS vdd ibias I = {{IBIAS}} * min(1, max(0, v(vdd)) / {{VDD}})
+VIP vip vcm {{V_PROBE_HALF}}
+VIN vin vcm {{V_PROBE_HALF_NEG}}
+R1 vip inp {{R_NET}}
+R2 inp outn {{R_NET}}
+R3 vin inn {{R_NET}}
+R4 inn outp {{R_NET}}
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+.control
+set filetype=ascii
+dc vdd 0 {{VDD_MAX}} 0.01
+write {{RAW}} v(outp) v(outn) v(vcm)
+.endc
+.end

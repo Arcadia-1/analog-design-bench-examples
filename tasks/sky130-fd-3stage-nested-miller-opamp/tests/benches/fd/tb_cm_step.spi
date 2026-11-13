@@ -1,0 +1,32 @@
+* FD-19  Common-mode feedback transient (spec 3.1.2: drive the input common
+* mode as far as the application allows and check the output common mode
+* stays at its design value).  The FD-01 network's common-mode source steps
+* VCOM -> VCOM + {{CM_STEP}} V -> VCOM; the output common-mode deviation,
+* its settling and any ringing show the CMFB loop's stability.
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-6 abstol=1e-15 vntol=1e-9 method=gear
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+IBIAS vdd ibias {{IBIAS}}
+VCM vcm 0 {{VCM}}
+VI vi vcm PULSE(0 {{CM_STEP}} {{T_DELAY}} {{T_EDGE}} {{T_EDGE}} {{T_WIDTH}} {{T_PERIOD}})
+R1 vi inp {{R_NET}}
+R2 inp outn {{R_NET}}
+R3 vi inn {{R_NET}}
+R4 inn outp {{R_NET}}
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+.control
+set filetype=ascii
+tran {{TSTEP}} {{TSTOP}} 0 {{TMAX}}
+write {{RAW}} v(outp) v(outn)
+.endc
+.end
