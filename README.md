@@ -31,4 +31,6 @@ harbor run --agent mini-swe-agent --model '<provider>/<model>' \
 
 ## License
 
-All rights reserved; see [`LICENSE`](LICENSE).
+Copyright (c) 2026 Arcadia-1. All rights reserved. No license is granted: this
+repository may be copied, run, modified or used to write new tasks only by
+people Arcadia-1 has authorized, for the purposes it has authorized.
