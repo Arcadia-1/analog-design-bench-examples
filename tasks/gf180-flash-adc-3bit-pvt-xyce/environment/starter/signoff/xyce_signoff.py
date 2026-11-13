@@ -8,7 +8,7 @@
   values (`ad = as = w * 0.18u`, `pd = ps = 2 * (w + 0.18u)`);
 - Xyce runs once in a fresh folder and writes every node voltage and source current to a binary raw file. A run that
   fails runs once more with gear integration;
-- from the raw file: no MOS may see more than 4.4 V gate-source, gate-drain or drain-source, or 5.5 V gate-bulk, at
+- from the raw file: no MOS may see more than 4.0 V gate-source, gate-drain or drain-source, or 5.5 V gate-bulk, at
   any time point; no source-bulk or drain-bulk junction may be forward biased by more than 0.4 V at the operating
   point (t = 0); and in every power window the energy stored in the circuit's capacitors (ideal C, plus the oxide
   capacitance of every MOS whose channel carries no current) may not end the window more than 5 % of the energy the
@@ -37,7 +37,7 @@ INCLUDE_RE = re.compile(r'^(\s*\.inc(?:lude)?\s+)("?)([^"\s]+)("?)\s*$', re.I)
 RETRY_OPTION = ".options timeint method=gear"
 
 DIFFUSION_M = 0.18e-6
-RATINGS = {"vgs": 4.4, "vgd": 4.4, "vds": 4.4, "vgb": 5.5}
+RATINGS = {"vgs": 4.0, "vgd": 4.0, "vds": 4.0, "vgb": 5.5}  # 3.63 V maximum operating voltage + 10 %
 JUNCTION_FORWARD_MAX = 0.4
 COX = 3.9 * 8.854e-12 / 8e-9  # F/m^2: the 3.3 V devices' toxe = 8 nm
 ENERGY_FRACTION = 0.05
@@ -213,7 +213,13 @@ class Waves:
             return np.zeros_like(self.t)
         key = node.upper()
         if key not in self.index:
-            raise KeyError(f"node {node} not in the raw file")
+            # Xyce's raw writer prints some hierarchical names with a digit run replaced by '#'
+            # (XADC:XB0:XA:NX is written XADC:XB#:XA:NX); accept such a name when it is the only one that fits.
+            fits = [n for n in self.index if "#" in n
+                    and re.fullmatch(re.escape(n).replace("\\#", "#").replace("#", r"\d+"), key)]
+            if len(fits) != 1:
+                raise KeyError(f"node {node} not in the raw file")
+            self.index[key] = self.index[fits[0]]
         return self.data[:, self.index[key]]
 
     def i(self, source):

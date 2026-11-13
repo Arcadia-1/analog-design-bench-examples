@@ -14,9 +14,10 @@ with the grader's own code.
 - **Multipliers.** `m=K` on an instance of a local subcircuit is simulated as K parallel copies; `m=K` on an ideal
   resistor or capacitor as the equivalent single value.
 - **Voltage ratings**, at every time point of every run, including the operating point at t = 0: no MOS may see more
-  than 4.4 V gate-source, gate-drain or drain-source, or 5.5 V gate-bulk. The 3.3 V devices are specified for
-  3.63 V; 4.4 V leaves room for the switching overshoot of dynamic nodes on the 3.6 V supply, but not for a node
-  pumped or bootstrapped above it.
+  than 4.0 V gate-source, gate-drain or drain-source, or 5.5 V gate-bulk. The 3.3 V devices have a maximum operating
+  voltage of 3.63 V; 4.0 V adds 10 % for switching transients such as clock feedthrough onto a precharged node. A
+  node driven or bootstrapped above the supply, or a floating node (for example inside a series stack) that coupling
+  pumps past a rail, can exceed it.
 - **Junctions.** At the operating point (t = 0) no source-bulk or drain-bulk junction may be forward biased by more
   than 0.4 V.
 - **Stored energy.** In each power window (50 ns to 1 ns before the end of both benches) the energy stored in your
