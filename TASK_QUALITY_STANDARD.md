@@ -7,8 +7,8 @@ This document defines the repository-wide quality bar for a formal Analog Arena 
 Every item must hold. The sections below explain each one.
 
 - [ ] The reference scores 1 and the untouched starter 0 (`harbor run --agent oracle` and `--agent nop`).
-- [ ] `tests/mutants/` holds reference copies with one defect each; every one scores below 1, and every scored check is failed by at least one mutant.
-- [ ] `tests/alts/` holds at least one correct design with a different topology or sizing; it scores 1.
+- [ ] `tests/mutants/` holds at least 5 reference copies with one defect each; every one scores below 1, and every scored check is failed by at least one mutant.
+- [ ] `tests/alts/` holds at least one correct design, preferably a different topology rather than only a different sizing; every one scores 1.
 - [ ] Limits are natural engineering targets, not the reference's worst case rounded outward, and the reference passes each with margin.
 - [ ] Claimed PVT or Monte Carlo coverage is the complete declared product; a representative subset is stated as such in the spec.
 - [ ] Hidden benches use conditions or stimuli the public benches do not show.
@@ -75,8 +75,8 @@ tasks.
 - For submissions that pass `check_circuit.py`, acceptance and partial credit come from published finite electrical measurements. The mandatory legality gate and the electrical score serve different purposes and must not be conflated.
 - Partial credit is allowed; a 0/1 reward is not required. The score must be monotonic: a better design must never score lower. An empty submission, a crash, or a failed simulation scores 0.
 - Boundary, polarity, monotonicity, coverage, and representative electrically bad designs should be tested wherever those failure modes could create a false pass or false rejection. Ship these bad designs with the task. Each must score below full reward; it need not score exactly zero.
-- Ship mutants in `tests/mutants/`: copies of the reference with one deliberate defect each (a swapped connection, a wrong device type, a missing branch, a mis-sized bias). Each must score below full reward. For tasks where the agent writes a testbench or checker, its deliverable must catch every mutant and still pass the reference.
-- Ship at least one alternative correct design in `tests/alts/`: a design that meets the public contract with a different topology or sizing from the reference. Each must get full reward. This proves the grader does not reward only the reference's own implementation. Mutants and alternatives stay in the task's `tests/` folder for review and are not copied into the verifier image.
+- Ship at least 5 mutants in `tests/mutants/`: copies of the reference with one deliberate defect each (a swapped connection, a wrong device type, a missing branch, a mis-sized bias, missing compensation). Each must score below full reward, and every scored check must be failed by at least one mutant. For tasks where the agent writes a testbench or checker, its deliverable must catch every mutant and still pass the reference.
+- Ship at least one alternative correct design in `tests/alts/`: a design that meets the public contract with a different topology from the reference where one exists, otherwise a clearly different sizing. Each must get full reward. This proves the grader does not reward only the reference's own implementation. Mutants and alternatives stay in the task's `tests/` folder for review and are not copied into the verifier image.
 - ngspice does not provide a reliable PSS/PNoise or intrinsic-MOS transient-noise flow for oscillator signoff. Oscillator phase noise, phase-noise FoM, and flicker-noise corner must not be hard-scored from transient FFT results.
 - External clocks should normally use a finite 50 ohm source resistance so abnormal drive current and clock-delivery energy remain observable. Any exception must preserve an equivalent electrical guardrail.
 - The same applies to external reference voltages and bias inputs: give them a finite source impedance and measure the current they deliver, so a design cannot draw unmetered power from an ideal source.
