@@ -11,7 +11,9 @@ electrical contract here, the simulation rules in
 `vdd` and `vss` are the supply rails, `vinp` and `vinn` the non-inverting and
 inverting inputs, `vout` the single-ended output. `ibias` is the only external
 bias port: the bench drives a constant reference current into it from `vdd`.
-That current comes from the measured supply, so it counts toward power.
+That current comes from the measured supply, so it counts toward power. The
+input sources are measured too: power the circuit takes from them counts
+toward the same limit.
 
 The design is a five-transistor OTA: a differential input pair, an active
 current-mirror load, and a tail current source mirrored from `ibias`. Grading
@@ -49,7 +51,7 @@ applies at every graded point.
 | `gain_40db` | Loop gain at 1 kHz at least 40 dB |
 | `ugb_100mhz` | Loop unity-gain frequency at least 100 MHz |
 | `phase_margin_60deg` | Phase margin at that frequency at least 60 degrees |
-| `power_0p5mw` | Supply power, including the `ibias` reference current, at most 0.5 mW |
+| `power_0p5mw` | Power from the supply (including the `ibias` reference current) and from the input source, at most 0.5 mW |
 | `noise_50uvrms` | Input-referred noise integrated from 10 Hz to 10 MHz at most 50 uVrms |
 | `cmrr_50db` | Open-loop common-mode rejection at 1 kHz at least 50 dB |
 | `psrr_30db` | Open-loop rejection of each supply rail at 1 kHz at least 30 dB |
@@ -61,8 +63,9 @@ Measurement definitions:
   measurement (`T = (Tv·Ti − 1)/(Tv + Ti + 2)`), swept from 10 Hz to 10 GHz at
   100 points per decade. UGB is the first falling 0 dB crossing; phase margin
   is 180 degrees plus the loop phase there. A loop without a crossing fails.
-- **Power** is `vdd` times the average `vdd` current at the unity-feedback
-  operating point.
+- **Power** is `vdd` times the `vdd` current plus the `vinp` source voltage
+  times its current, at the unity-feedback operating point. A legal input
+  draws no DC current, so the second term is zero.
 - **Noise** is the input-referred noise of the unity-feedback circuit at
   `vout`, integrated from 10 Hz to 10 MHz.
 - **CMRR** is the open-loop differential gain over the common-mode gain at
