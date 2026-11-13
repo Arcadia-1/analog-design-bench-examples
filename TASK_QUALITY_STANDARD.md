@@ -30,6 +30,7 @@ tasks.
 - ADC-style and other system-derived limits may be derived from resolution, sampling rate, error budget, application requirements, or another explicit system contract instead of the reference edge. The derivation must be stated.
 - Every scored metric must measure the intended capability and distinguish a correct design from a plausible shortcut. Redundant metrics are acceptable only when they close a distinct loophole or make a distinct failure observable.
 - A physically better result must not fail because it lies beyond a sweep boundary or because of incorrect interpolation, censoring, polarity, or sign handling.
+- An open-loop gain, CMRR or PSRR measurement must set the amplifier's DC operating point with DC feedback (a very large inductor from the output to the inverting input with the AC drive through a large capacitor, or a low-pass DC servo), never by biasing every input from a source. Otherwise a systematic or mismatch offset multiplied by the open-loop gain pushes the output toward a rail, and a higher-gain design reads worse.
 - Settling and recovery measurements must use the real commanded target or another externally defined target. A submitted output tail must not define its own target.
 
 ## Coverage and test cost
