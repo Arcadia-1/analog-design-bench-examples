@@ -1,0 +1,25 @@
+Bandgap startup bench, typical corner: supply and enable ramp together from 0 V to 3.3 V in 10 us
+include "sg13g2_vacask_common.lib"
+include "cornerMOShv.lib" section=mos_tt
+include "cornerMOSlv.lib" section=mos_tt
+include "cornerHBT.lib" section=hbt_typ
+include "cornerRES.lib" section=res_typ
+include "cornerCAP.lib" section=cap_typ
+include "../circuit.sim"
+model vsource vsource
+model isource isource
+
+vdd (vdd 0) vsource dc=3.3
+vensrc (ensrc 0) vsource dc=3.3
+ren (ensrc en) sg13g2_default_mod_r r=10k
+xdut (vdd 0 en vref) bandgap
+cl (vref 0) sg13g2_default_mod_c c=10p
+
+control
+  options temp=27
+  // target: the operating point with the supply and enable at their final DC values
+  analysis target op
+  alter instance("vdd") type="pulse" val0=0 val1=3.3 rise=10u delay=1u
+  alter instance("vensrc") type="pulse" val0=0 val1=3.3 rise=10u delay=1u
+  analysis tr tran stop=41u step=10n maxstep=50n icmode="op"
+endc

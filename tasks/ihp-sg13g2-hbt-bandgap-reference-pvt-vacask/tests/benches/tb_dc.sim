@@ -1,0 +1,38 @@
+Bandgap DC bench (hidden): accuracy, temperature coefficient, line and load regulation, current, shutdown
+include "sg13g2_vacask_common.lib"
+include "cornerMOShv.lib" section=__MOS__
+include "cornerMOSlv.lib" section=__MOS__
+include "cornerHBT.lib" section=__HBT__
+include "cornerRES.lib" section=__RES__
+include "cornerCAP.lib" section=__CAP__
+include "circuit.sim"
+model vsource vsource
+model isource isource
+
+vdd (vdd 0) vsource dc=vsup
+vensrc (ensrc 0) vsource dc=vsup*enable
+ren (ensrc en) sg13g2_default_mod_r r=10k
+iload (vref 0) isource dc=0
+xdut (vdd 0 en vref) bandgap
+cl (vref 0) sg13g2_default_mod_c c=__CL__
+
+control
+  var vsup=3.3 enable=1
+  sweep vsup variable="vsup" values=[__SUPPLIES__]
+  sweep temp option="temp" values=[__TEMPS__]
+    analysis dc op
+  sweep vsup variable="vsup" values=[__CORNER_SUPPLIES__]
+  sweep temp option="temp" values=[__CORNER_TEMPS__]
+  sweep iload instance="iload" parameter="dc" values=[0, __LOAD__]
+    analysis load op
+  sweep vsup variable="vsup" values=[__CORNER_SUPPLIES__]
+  sweep temp option="temp" values=[__CORNER_TEMPS__]
+    analysis nslo op nodeset={"vref", 0, "en", vsup}
+  sweep vsup variable="vsup" values=[__CORNER_SUPPLIES__]
+  sweep temp option="temp" values=[__CORNER_TEMPS__]
+    analysis nshi op nodeset={"vref", vsup, "en", vsup}
+  sweep vsup variable="vsup" values=[__CORNER_SUPPLIES__]
+  sweep temp option="temp" values=[__CORNER_TEMPS__]
+  sweep enable variable="enable" values=[0]
+    analysis off op
+endc

@@ -1,0 +1,29 @@
+// Alternative design: the same Kuijk principle built differently: long-emitter npn13G2l HBTs with a 1:12
+// emitter ratio, an rppd bias resistor, a wider and longer op-amp input pair, a 3x tail, a 70u x 70u Miller
+// capacitor and a 4 Mohm rhigh startup leak.
+subckt bandgap (vdd vss en vref)
+  xinvp (enb en vdd vdd) sg13_hv_pmos w=1u l=0.5u
+  xinvn (enb en vss vss) sg13_hv_nmos w=1u l=0.5u
+  xpb (pb pb vdd vdd) sg13_hv_pmos w=3u l=6u
+  rb (pb nb vss) rppd w=0.5u l=900u
+  xsb (nb en vss vss) sg13_hv_nmos w=2u l=0.5u
+  xpbo (pb en vdd vdd) sg13_hv_pmos w=1u l=0.5u
+  xpt (tail pb vdd vdd) sg13_hv_pmos w=3u l=6u m=3
+  xp1 (o1 a tail vdd) sg13_hv_pmos w=60u l=3u
+  xp2 (d2 b tail vdd) sg13_hv_pmos w=60u l=3u
+  xn1 (o1 d2 vss vss) sg13_hv_nmos w=8u l=5u
+  xn2 (d2 d2 vss vss) sg13_hv_nmos w=8u l=5u
+  xn5 (vref o1 vss vss) sg13_hv_nmos w=8u l=5u m=6
+  xpu (vref pb vdd vdd) sg13_hv_pmos w=3u l=6u m=9
+  xcc (o1 cz) cap_cmim w=70u l=70u
+  rz (cz vref vss) rppd w=0.5u l=20u
+  rst (b vss vss) rhigh w=0.5u l=1500u
+  xdv (vref enb vss vss) sg13_hv_nmos w=1u l=0.5u
+  r1 (vref a vss) rppd w=0.5u l=170u
+  r2 (vref b vss) rppd w=0.5u l=170u
+  r3 (b e2 vss) rppd w=0.5u l=31u
+  q1 (a a vss vss) npn13G2l nx=1 le=2.5u
+  q2a (e2 e2 vss vss) npn13G2l nx=4 le=2.5u
+  q2b (e2 e2 vss vss) npn13G2l nx=4 le=2.5u
+  q2c (e2 e2 vss vss) npn13G2l nx=4 le=2.5u
+ends

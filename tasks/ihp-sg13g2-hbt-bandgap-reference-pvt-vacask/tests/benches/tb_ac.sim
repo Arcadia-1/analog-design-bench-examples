@@ -1,0 +1,28 @@
+Bandgap small-signal bench (hidden): supply rejection and output noise at 10 kHz
+include "sg13g2_vacask_common.lib"
+include "cornerMOShv.lib" section=__MOS__
+include "cornerMOSlv.lib" section=__MOS__
+include "cornerHBT.lib" section=__HBT__
+include "cornerRES.lib" section=__RES__
+include "cornerCAP.lib" section=__CAP__
+include "circuit.sim"
+model vsource vsource
+model isource isource
+
+vdd (vdd 0) vsource dc=vsup mag=1
+vensrc (ensrc 0) vsource dc=vsup
+ren (ensrc en) sg13g2_default_mod_r r=10k
+xdut (vdd 0 en vref) bandgap
+cl (vref 0) sg13g2_default_mod_c c=__CL__
+
+control
+  var vsup=3.3
+  save v(vref)
+  sweep vsup variable="vsup" values=[__SUPPLIES__]
+  sweep temp option="temp" values=[__TEMPS__]
+    analysis ac ac values=[10k]
+  clear saves
+  sweep vsup variable="vsup" values=[__SUPPLIES__]
+  sweep temp option="temp" values=[__TEMPS__]
+    analysis nz noise out="vref" in="vdd" values=[10k]
+endc

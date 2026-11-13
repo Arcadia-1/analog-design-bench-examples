@@ -1,9 +1,16 @@
 # Analog Design Bench: example tasks
 
-Three example harbor tasks, each a model for writing a new Analog Design Bench task. 
+Four example harbor tasks, each a model for writing a new Analog Design Bench task. 
 An agent designs an analog circuit in `/app/circuit.spi`; a hidden verifier scores it. 
 Each task directory is self-contained. 
 The rules are in [`TASK_QUALITY_STANDARD.md`](TASK_QUALITY_STANDARD.md).
+
+| Task | PDK | Simulator |
+| --- | --- | --- |
+| `sky130-fd-3stage-nested-miller-opamp` | Sky130 | ngspice |
+| `ihp-sg13g2-ctle-28g-nrz-tunable-ac-termination-pvt` | IHP SG13G2 | ngspice |
+| `gf180-flash-adc-3bit-pvt-xyce` | GF180MCU | Xyce |
+| `ihp-sg13g2-hbt-bandgap-reference-pvt-vacask` | IHP SG13G2 | VACASK |
 
 ## Run
 

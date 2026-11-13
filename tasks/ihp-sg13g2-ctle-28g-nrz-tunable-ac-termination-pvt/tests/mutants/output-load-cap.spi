@@ -1,0 +1,85 @@
+* Mutant: An extra 500 fF from each collector to vss, which resonates with the series inductors above Nyquist.
+* Fails above-Nyquist peaking and the peak code table.
+.subckt ctle_28g vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn
+* bias: iref diode, cascoded tails
+XREF iref iref vss vss sg13_lv_nmos w=2u l=0.5u ng=1
+XTP tp iref vss vss sg13_lv_nmos w=120u l=0.5u ng=12
+XTCP ep vcg tp vss sg13_lv_nmos w=60u l=0.13u ng=12
+XTN tn iref vss vss sg13_lv_nmos w=120u l=0.5u ng=12
+XTCN en vcg tn vss sg13_lv_nmos w=60u l=0.13u ng=12
+XBN xbn iref vss vss sg13_lv_nmos w=2u l=0.5u ng=1
+XBC pbd vocm xbn vss sg13_hv_nmos w=4u l=0.45u ng=1
+XBPD pbd pbd vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
+XBPM vbg pbd vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
+RSH vbg vocm 1k
+CBG vbg vss 10p
+XBPC vcg pbd vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
+XCREP vcg vcg vcs vss sg13_lv_nmos w=1u l=0.13u ng=1
+RCB vcs vss 3k
+CCG vcg vss 10p
+* input
+RTP vinp vocm 50
+RTN vinn vocm 50
+CCP vinp bp 2n
+CCN vinn bn 2n
+RBP bp vbg 5k
+RBN bn vbg 5k
+XQP cp bp ep vss npn13G2 Nx=8
+XQN cn bn en vss npn13G2 Nx=8
+LPP vddi xp 0.25n
+RLP xp cp 45
+LOP cp voutn 0.2n
+LPN vddi xn 0.25n
+RLN xn cn 45
+LON cn voutp 0.2n
+* gain bank
+RS0 ep en 345
+RG1A ep g1a 643
+XG1A g1a gain_b1 g1b vss sg13_hv_nmos w=20u l=0.45u ng=4
+XG1B g1a gain_b0 g1b vss sg13_hv_nmos w=20u l=0.45u ng=4
+RG1B g1b en 643
+RG2A ep g2a 491
+XG2 g2a gain_b1 g2b vss sg13_hv_nmos w=20u l=0.45u ng=4
+RG2B g2b en 491
+RG3A ep g3a 386
+XG3A g3a gain_b1 g3m vss sg13_hv_nmos w=40u l=0.45u ng=8
+XG3B g3m gain_b0 g3b vss sg13_hv_nmos w=40u l=0.45u ng=8
+RG3M g3m vss 1meg
+RG3B g3b en 386
+* peak bank: thermometer-decoded differential varactors; each well is driven by the inverted bit
+* t1 = b0 or b1 (well = NOR), t2 = b1 (well = NOT b1), t3 = b0 and b1 (well = NAND)
+XN1PA n1 peak_b0 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XN1PB w1 peak_b1 n1 vdd sg13_hv_pmos w=2u l=0.5u ng=1
+RN1 n1 vdd 1meg
+XN1NA w1 peak_b0 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+XN1NB w1 peak_b1 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+XI2P w2 peak_b1 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XI2N w2 peak_b1 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+XN3PA w3 peak_b0 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XN3PB w3 peak_b1 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XN3NA w3 peak_b0 n3 vss sg13_hv_nmos w=1u l=0.5u ng=1
+XN3NB n3 peak_b1 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+RN3 n3 vss 1meg
+RW1 w1 w1f 20k
+RW2 w2 w2f 20k
+RW3 w3 w3f 20k
+CW1 w1f vss 1p
+CW2 w2f vss 1p
+CW3 w3f vss 1p
+XV1 ep w1f en vss sg13_hv_svaricap w=9.74u l=0.8u nx=3
+XV2 ep w2f en vss sg13_hv_svaricap w=9.74u l=0.8u nx=3
+XV3 ep w3f en vss sg13_hv_svaricap w=9.74u l=0.8u nx=4
+CXP cp vss 500f
+CXN cn vss 500f
+* CMFB
+RCP voutp cms 10k
+RCN voutn cms 10k
+XE1 ea1 cms et vss sg13_hv_nmos w=10u l=0.5u ng=2
+XE2 ea2 vocm et vss sg13_hv_nmos w=10u l=0.5u ng=2
+XEP1 ea1 ea1 vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
+XEP2 ea2 ea1 vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
+XET et iref vss vss sg13_lv_nmos w=4u l=0.5u ng=1
+CCMP ea2 vdd 2p
+XPASS vddi ea2 vdd vdd sg13_hv_pmos w=200u l=0.4u ng=40 m=4
+CVDDI vddi vss 20p
+.ends ctle_28g
