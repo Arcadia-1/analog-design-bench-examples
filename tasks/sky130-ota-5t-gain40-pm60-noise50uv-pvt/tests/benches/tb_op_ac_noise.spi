@@ -64,7 +64,7 @@ foreach run $points
   alter VINI = $&common_mode
 
   op
-  let {$prefix}_power_w = abs($&supply*i(vddp))
+  let {$prefix}_power_w = abs($&supply*i(vddp)) + abs($&common_mode*i(vinp))
   print {$prefix}_power_w
 
   ac dec 100 10 10G
