@@ -1,0 +1,32 @@
+* FD-25  Power-up and power-down stability
+* Spec 3.3.4.1: the FD-01 application (inputs at the common-mode point
+* VDD/2, RL/CL load); VDD ramps 0 -> {{VDD}} V in {{T_RAMP}} s, holds, then ramps
+* back to 0 V in {{T_RAMP}} s.  Vod must stay at 0 and the output common mode
+* must settle to VDD/2 without oscillating.  The bias current scales with VDD.
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-4 abstol=1e-14 vntol=1e-7 method=gear
+VDD vdd 0 PWL(0 0 {{T_START}} 0 {{T_UP}} {{VDD}} {{T_HOLD}} {{VDD}} {{T_DOWN}} 0 {{T_END}} 0)
+VSS vss 0 0
+EVCM vcm 0 vdd 0 {{VCM_FRACTION}}
+BIBIAS vdd ibias I = {{IBIAS}} * min(1, max(0, v(vdd)) / {{VDD}})
+VI vi vcm 0
+R1 vi inp {{R_NET}}
+R2 inp outn {{R_NET}}
+R3 vi inn {{R_NET}}
+R4 inn outp {{R_NET}}
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+.control
+set filetype=ascii
+tran {{TSTEP}} {{T_END}} 0 {{TMAX}}
+let ocm = (v(outp) + v(outn)) / 2
+write {{RAW}} v(outp) v(outn) ocm v(vdd) v(vcm)
+.endc
+.end

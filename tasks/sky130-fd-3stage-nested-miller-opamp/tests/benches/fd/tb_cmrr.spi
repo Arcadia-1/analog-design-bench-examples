@@ -1,0 +1,32 @@
+* FD-09  Common-mode rejection
+* Spec 3.1.3.2, Fig. 30: AC 1 V common-mode source at VCOM drives both input
+* resistors of the FD-01 network.  (Vop + Von)/2 is the input-CM to
+* output-CM transfer the spec observes; (Vop - Von) is the CM-to-DM transfer
+* (zero for a symmetric design, finite only with mismatch).  AC 10 mHz .. 1 GHz.
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-6 abstol=1e-16 vntol=1e-10
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+IBIAS vdd ibias {{IBIAS}}
+VCM vcm 0 {{VCM}}
+VI vi vcm DC 0 AC 1
+R1 vi inp {{R_NET}}
+R2 inp outn {{R_NET}}
+R3 vi inn {{R_NET}}
+R4 inn outp {{R_NET}}
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+.control
+set filetype=ascii
+ac dec 50 10m 1G
+write {{RAW}} v(outp) v(outn)
+.endc
+.end

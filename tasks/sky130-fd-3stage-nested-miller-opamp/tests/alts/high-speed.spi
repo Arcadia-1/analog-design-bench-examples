@@ -1,0 +1,39 @@
+* Three-stage fully-differential nested-Miller op amp with continuous-time CMFB.
+* Design variant, optimized for: high speed; high speed, at least 5 % margin on every limit; precision (gain, offset, rejection); speed per current.
+* Same topology as the reference solution; only device sizes, bias ratios and compensation differ.
+.subckt fd3_nmc_opamp vss ibias vdd vcm vinp vinn voutp voutn
+XB0 ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=12.8 nf=4
+XTAIL tail ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=77.92 nf=24
+XT2 t2 ibias vss vss sky130_fd_pr__nfet_01v8 l=8 w=107.21 nf=27
+XM1 o1n vinp tail vss sky130_fd_pr__nfet_01v8_lvt l=1.94 w=15.36 nf=4
+XM2 o1p vinn tail vss sky130_fd_pr__nfet_01v8_lvt l=1.94 w=15.36 nf=4
+XM3 o1n c1 vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=93.42 nf=23
+XM4 o1p c1 vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=93.42 nf=23
+R1A o1n c1 974577
+R1B o1p c1 974577
+XA2 dA o1n t2 vss sky130_fd_pr__nfet_01v8_lvt l=0.54 w=13.13 nf=3
+XB2 dB o1p t2 vss sky130_fd_pr__nfet_01v8_lvt l=0.54 w=13.13 nf=3
+XL2A dA ce vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1.32 w=20.29 nf=5
+XL2B dB ce vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1.32 w=20.29 nf=5
+XM5 voutp dB vdd vdd sky130_fd_pr__pfet_01v8_lvt l=0.5 w=30 nf=8
+XM6 voutn dA vdd vdd sky130_fd_pr__pfet_01v8_lvt l=0.5 w=30 nf=8
+XS5 voutp ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=192 nf=60
+XS6 voutn ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=192 nf=60
+RM1P voutp m1p 1356
+CM1P m1p o1n 2012.5f
+RM2P voutp m2p 4753
+CM2P m2p dB 647.8f
+RM1N voutn m1n 1356
+CM1N m1n o1p 2012.5f
+RM2N voutn m2n 4753
+CM2N m2n dA 647.8f
+RS1 voutp cms 2meg
+RS2 voutn cms 2meg
+CS1 voutp cms 88.6f
+CS2 voutn cms 88.6f
+XE0 te ibias vss vss sky130_fd_pr__nfet_01v8 l=8 w=23.59 nf=6
+XE1 ea vcm te vss sky130_fd_pr__nfet_01v8_lvt l=1 w=11.12 nf=3
+XE2 ce cms te vss sky130_fd_pr__nfet_01v8_lvt l=1 w=11.12 nf=3
+XE3 ea ea vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1.32 w=4.13 nf=1
+XE4 ce ce vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1.32 w=4.13 nf=1
+.ends fd3_nmc_opamp

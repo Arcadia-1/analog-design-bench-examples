@@ -1,0 +1,37 @@
+schema_version = "1.3"
+artifacts = ["/app/circuit.spi"]
+
+[task]
+name = "analog-arena/sky130-ctle-28g-nrz-tunable-ac-termination-pvt"
+description = "Design a Sky130 fully differential CTLE for a 28 Gb/s NRZ receiver with a 50 ohm input matched to -10 dB return loss up to 14 GHz, 2-bit gain (-12 to -6 dB) and peak (0 to +6 dB at 14 GHz) codes, flat non-inverting response to 17 GHz, stable vocm-tracking bias and at most 60 mW, across process, supply and temperature."
+authors = [{ name = "Mingtao Zhan" }]
+
+[metadata]
+category = "Hardware, Embedded, and Low-Level Systems"
+subcategory = "Analog and mixed-signal circuit design"
+task_objective = ["Implement"]
+artifact_type = ["Hardware or firmware artifact"]
+
+[agent]
+timeout_sec = 7200.0
+user = "agent"
+
+[verifier]
+timeout_sec = 3600.0
+user = "root"
+environment_mode = "separate"
+
+[verifier.environment]
+network_mode = "no-network"
+build_timeout_sec = 900.0
+cpus = 4
+memory_mb = 8192
+storage_mb = 10240
+
+[environment]
+network_mode = "no-network"
+build_timeout_sec = 900.0
+cpus = 4
+memory_mb = 8192
+storage_mb = 10240
+workdir = "/app"

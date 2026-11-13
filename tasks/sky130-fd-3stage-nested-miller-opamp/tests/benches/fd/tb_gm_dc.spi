@@ -1,0 +1,27 @@
+* FD-17  Transconductance gm, linear input range VID, gm/ICC, output current IOPP
+* OTA spec 3.2.1.1, Fig. 34: Vin across the inputs, R1 = R2 = {{R_NET}} ohm from
+* the inputs to VCOM set their common mode, each output returns to VCOM
+* through RG = {{R_GM}} ohm.  Iout = (Vop - Von)/RG; gm = dIout/dVin at the null.
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-7 abstol=1e-16 vntol=1e-10
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+IBIAS vdd ibias {{IBIAS}}
+VCM vcm 0 {{VCM}}
+R1 inp vcm {{R_NET}}
+R2 vcm inn {{R_NET}}
+VID inp inn DC 0
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RGP outp vcm {{R_GM}}
+RGN outn vcm {{R_GM}}
+.control
+set filetype=ascii
+dc vid {{VID_START}} {{VID_STOP}} {{VID_STEP}}
+write {{RAW}} v(outp) v(outn) i(vdd)
+.endc
+.end

@@ -1,0 +1,49 @@
+* FD-11  Closed-loop output impedance, differential and common mode
+* Spec 3.2.2.5 applied to the FD-01 network (inputs at VCOM, RL/CL load).
+* Copy D: AC 1/2 A into Vop and 1/2 A out of Von; |Vop - Von| per ampere is
+*   each output's closed-loop impedance.  Copy C: AC 1 A into each output;
+*   (Vop + Von)/2 per ampere is the common-mode output impedance the CMFB holds.
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-5 abstol=1e-15 vntol=1e-9
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+IBIAS vdd ibias {{IBIAS}}
+VCM vcm 0 {{VCM}}
+* Copy D
+VI vi vcm 0
+R1 vi inp {{R_NET}}
+R2 inp outn {{R_NET}}
+R3 vi inn {{R_NET}}
+R4 inn outp {{R_NET}}
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+IOP 0 outp DC 0 AC 0.5
+ION 0 outn DC 0 AC 0.5 180
+* Copy C
+IBIASC vdd ibiasc {{IBIAS}}
+R1C vcm inpc {{R_NET}}
+R2C inpc onc {{R_NET}}
+R3C vcm innc {{R_NET}}
+R4C innc opc {{R_NET}}
+XC vss ibiasc vdd vcmpin_c inpc innc opc onc {{DUT}}
+RVCM_C vcm vcmpin_c 1k
+RLPC opc vcm {{RL}}
+CLPC opc 0 {{CL}}
+RLNC onc vcm {{RL}}
+CLNC onc 0 {{CL}}
+IOPC 0 opc DC 0 AC 1
+IONC 0 onc DC 0 AC 1
+.control
+set filetype=ascii
+ac dec 50 1 1G
+write {{RAW}} v(outp) v(outn) v(opc) v(onc)
+.endc
+.end

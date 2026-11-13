@@ -1,0 +1,32 @@
+* FD-28  Input common-mode range from the operating point (spec 3.2.1.3, last
+* paragraph, applied to the FD-01 network at the common-mode point): the
+* harness finds the input pair and its tail device and prints their
+* operating-point quantities; low = VGS(input) + VDSAT(tail),
+* high = V(input drain) + VTH(input) for an NMOS input.
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-6 abstol=1e-15 vntol=1e-9
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+IBIAS vdd ibias {{IBIAS}}
+VCM vcm 0 {{VCM}}
+VI vi vcm 0
+R1 vi inp {{R_NET}}
+R2 inp outn {{R_NET}}
+R3 vi inn {{R_NET}}
+R4 inn outp {{R_NET}}
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RLP outp vcm {{RL}}
+CLP outp 0 {{CL}}
+RLN outn vcm {{RL}}
+CLN outn 0 {{CL}}
+.control
+set filetype=ascii
+op
+{{PRINTS}}
+write {{RAW}} v(outp)
+.endc
+.end

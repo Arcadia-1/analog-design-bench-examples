@@ -1,0 +1,44 @@
+* FD-18  Transconductance frequency response gm(f)
+* OTA spec 3.2.2.1 (Fig. 35) with the Fig. 34 FD connection: AC 1 across the
+* inputs, outputs returned to VCOM through RG = {{R_GM}} ohm; gm(f) = (Vop - Von)/RG.
+* Copy L follows Fig. 35 as drawn: actual RL/CL load per output, a DC-only
+* differential servo for bias, gm = |Vop - Von|/RL.
+{{SEED_OPTION}}
+.lib "{{MODEL_LIB}}" {{CORNER}}
+{{MC_PARAM}}
+.include "{{DUT_FILE}}"
+.temp {{TEMP}}
+.options reltol=1e-5 abstol=1e-15 vntol=1e-9
+VDD vdd 0 {{VDD}}
+VSS vss 0 0
+IBIAS vdd ibias {{IBIAS}}
+VCM vcm 0 {{VCM}}
+R1 inp vcm {{R_NET}}
+R2 vcm inn {{R_NET}}
+VID inp inn DC 0 AC 1
+XDUT vss ibias vdd vcmpin inp inn outp outn {{DUT}}
+RVCM_DUT vcm vcmpin 1k
+RGP outp vcm {{R_GM}}
+RGN outn vcm {{R_GM}}
+* Copy L: Fig. 35 as drawn
+IBIASL vdd ibiasl {{IBIAS}}
+EPL spl vcm onl opl 0.5
+ENL snl vcm opl onl 0.5
+LPL spl xpl 1G
+CPL xpl 0 1G
+LNL snl xnl 1G
+CNL xnl 0 1G
+VAPL inpl xpl DC 0 AC 0.5
+VANL innl xnl DC 0 AC 0.5 180
+XL vss ibiasl vdd vcmpin_l inpl innl opl onl {{DUT}}
+RVCM_L vcm vcmpin_l 1k
+RLPL opl vcm {{RL}}
+CLPL opl 0 {{CL}}
+RLNL onl vcm {{RL}}
+CLNL onl 0 {{CL}}
+.control
+set filetype=ascii
+ac dec 50 1 10G
+write {{RAW}} v(outp) v(outn) v(opl) v(onl)
+.endc
+.end
