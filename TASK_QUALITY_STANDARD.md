@@ -1,6 +1,26 @@
 # Analog Arena Task Quality Standard
 
-This document defines the repository-wide quality bar for a formal Analog Arena task. It defines task quality, not a repair, image-publication, or Vela-launch workflow. Task-specific electrical limits and all other public requirements are stated directly in each task's `instruction.md`.
+This document defines the repository-wide quality bar for a formal Analog Arena task. It defines task quality, not a repair, image-publication, or Vela-launch workflow. Task-specific electrical limits and all other public requirements are stated in each task's `instruction.md` and the specification documents it points to.
+
+## Checklist before submitting
+
+Every item must hold. The sections below explain each one.
+
+- [ ] The reference scores 1 and the untouched starter 0 (`harbor run --agent oracle` and `--agent nop`).
+- [ ] `tests/mutants/` holds reference copies with one defect each; every one scores below 1, and every scored check is failed by at least one mutant.
+- [ ] `tests/alts/` holds at least one correct design with a different topology or sizing; it scores 1.
+- [ ] Limits are natural engineering targets, not the reference's worst case rounded outward, and the reference passes each with margin.
+- [ ] Claimed PVT or Monte Carlo coverage is the complete declared product; a representative subset is stated as such in the spec.
+- [ ] Hidden benches use conditions or stimuli the public benches do not show.
+- [ ] Every external input (clock, bias, reference, signal source) has a finite source impedance, and the power it delivers is metered.
+- [ ] Open-loop gain, CMRR and PSRR benches set the operating point by DC feedback.
+- [ ] Settling and recovery targets are commanded values, never the submitted design's own output.
+- [ ] `check_circuit.py` runs before simulation and a failure scores 0; nothing recognizes or scores topology.
+- [ ] `tests/test.sh` calls `verify.py` once; an early exit, crash or empty submission scores 0.
+- [ ] A complete grading run finishes within 15 minutes.
+- [ ] `instruction.md` is a short ticket; interface, conditions, limits and measurement definitions are in `spec/`, each rule once.
+- [ ] `task.toml` has the shape below (taxonomy-only `[metadata]`, agent user `agent`, no network) and parses with Harbor 0.25.0.
+- [ ] Task files carry no repair history, PR numbers or conversion notes.
 
 ## Core principles
 
