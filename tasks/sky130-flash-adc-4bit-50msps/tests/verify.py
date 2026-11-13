@@ -52,11 +52,9 @@ DYNAMIC = {
 LIMITS = {
     "transfer_error_count_max": 0,
     "missing_codes_max": 0,
-    "sndr_db_min": 22.0,
-    "sfdr_db_min": 26.0,
-    "average_power_w_max": 5e-3,
-    "inl_max_lsb": 0.5,
-    "dnl_max_lsb": 0.5,
+    "sndr_db_min": 24.0,
+    "sfdr_db_min": 29.0,
+    "average_power_w_max": 3e-3,
 }
 SPICE_NUMBER = re.compile(
     r"(?i)^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?(?:meg|[kmunpf])?$"
@@ -400,8 +398,6 @@ def extract_metrics(
     sndr = ratio_db(signal, noise)
     sfdr = ratio_db(signal, spur)
 
-    inl_dnl_metrics = compute_inl_dnl(vectors) if "inl_dnl" in vectors else {}
-
     return {
         **transfer_metrics,
         "dynamic_codes": dynamic,
@@ -413,83 +409,6 @@ def extract_metrics(
         "supply_power_w": supply_power,
         "clock_pin_power_w": clock_pin_power,
         "input_pin_power_w": input_pin_power,
-        **inl_dnl_metrics,
-    }
-
-
-def compute_inl_dnl(vectors: dict[str, dict[str, list[float]]]) -> dict[str, object]:
-    vec = vectors["inl_dnl"]
-    times = vec["time"]
-    vinp = vec["v(vinp)"]
-    vinn = vec["v(vinn)"]
-    sample_times = [9e-9 + k * 20e-9 for k in range(90)]
-    codes_list = []
-    vdiff_list = []
-    for ts in sample_times:
-        idx = min(max(bisect.bisect_left(times, ts), 1), len(times) - 1)
-        frac = (
-            (ts - times[idx - 1]) / (times[idx] - times[idx - 1])
-            if times[idx] != times[idx - 1]
-            else 0
-        )
-        vals = {}
-        for name in ("v(d3)", "v(d2)", "v(d1)", "v(d0)"):
-            vals[name] = vec[name][idx - 1] + frac * (vec[name][idx] - vec[name][idx - 1])
-        vp = vinp[idx - 1] + frac * (vinp[idx] - vinp[idx - 1])
-        vn = vinn[idx - 1] + frac * (vinn[idx] - vinn[idx - 1])
-        codes_list.append(sum((vals[f"v(d{bit})"] > 0.9) << bit for bit in range(4)))
-        vdiff_list.append(vp - vn)
-
-    transitions = [
-        (
-            codes_list[index - 1],
-            codes_list[index],
-            (vdiff_list[index - 1] + vdiff_list[index]) / 2,
-        )
-        for index in range(1, len(codes_list))
-        if codes_list[index] != codes_list[index - 1]
-    ]
-    monotonic = all(before <= after for before, after in zip(codes_list, codes_list[1:]))
-    missing_codes = 16 - len(set(codes_list))
-    adjacent_transitions = [(before, after) for before, after, _ in transitions]
-    expected_transitions = [(value, value + 1) for value in range(15)]
-    valid = monotonic and missing_codes == 0 and adjacent_transitions == expected_transitions
-    result: dict[str, object] = {
-        "linearity_codes": codes_list,
-        "linearity_transition_count": len(transitions),
-        "linearity_missing_codes": missing_codes,
-        "linearity_valid": valid,
-        "monotonic": monotonic,
-    }
-    if not valid:
-        return {
-            **result,
-            "inl_max_lsb": float("inf"),
-            "dnl_max_lsb": float("inf"),
-        }
-
-    first_transition = transitions[0][2]
-    endpoint_lsb = (transitions[-1][2] - first_transition) / 14
-    if not math.isfinite(endpoint_lsb) or endpoint_lsb <= 0:
-        return {
-            **result,
-            "linearity_valid": False,
-            "inl_max_lsb": float("inf"),
-            "dnl_max_lsb": float("inf"),
-        }
-    inl_values = [
-        (transition[2] - (first_transition + index * endpoint_lsb)) / endpoint_lsb
-        for index, transition in enumerate(transitions)
-    ]
-    dnl_values = [
-        (transitions[index][2] - transitions[index - 1][2]) / endpoint_lsb - 1
-        for index in range(1, len(transitions))
-    ]
-    return {
-        **result,
-        "endpoint_lsb_v": endpoint_lsb,
-        "inl_max_lsb": max(abs(value) for value in inl_values),
-        "dnl_max_lsb": max(abs(value) for value in dnl_values),
     }
 
 
@@ -505,7 +424,6 @@ def run_simulations(
     transfer_case = ("transfer", benches / "tb_transfer.spi")
     remaining_cases = (
         ("dynamic", benches / "tb_dynamic.spi"),
-        ("inl_dnl", benches / "tb_inl_dnl.spi"),
     )
     with tempfile.TemporaryDirectory(prefix="flash4-") as directory:
         work = Path(directory)
@@ -549,7 +467,7 @@ def run_simulations(
                 "wall_clock_s": time.monotonic() - started,
                 "per_run_time_s": {transfer_name: transfer_result[2]},
                 "failed_runs": [f"{transfer_name}: {transfer_error}"],
-                "blocked_runs": ["dynamic", "inl_dnl"],
+                "blocked_runs": ["dynamic"],
             }
         transfer_metrics = extract_metrics_for_transfer(transfer_vectors, operating)
         transfer_valid = (
@@ -568,7 +486,7 @@ def run_simulations(
                 "wall_clock_s": time.monotonic() - started,
                 "per_run_time_s": {transfer_name: transfer_result[2]},
                 "failed_runs": [],
-                "blocked_runs": ["dynamic", "inl_dnl"],
+                "blocked_runs": ["dynamic"],
             }
         workers = min(max(1, jobs), len(remaining_cases))
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
@@ -580,7 +498,7 @@ def run_simulations(
             if vector is not None and error is None
         }
         failures = [f"{name}: {error}" for name, _, _, error in results if error]
-        metrics = extract_metrics(vectors, operating) if len(vectors) == 3 else {}
+        metrics = extract_metrics(vectors, operating) if len(vectors) == 2 else {}
         summary = {
             "integrity": {
                 "passed": True,
@@ -692,7 +610,7 @@ def score(metrics: dict[str, object], run_summary: dict[str, object]) -> list[Ch
     )
     complete = (
         integrity_passed
-        and run_summary.get("runs") == 3
+        and run_summary.get("runs") == 2
         and not run_summary.get("failed_runs")
         and not run_summary.get("blocked_runs")
         and bool(metrics)
@@ -703,11 +621,6 @@ def score(metrics: dict[str, object], run_summary: dict[str, object]) -> list[Ch
     sndr = float(metrics.get("sndr_db", -math.inf))
     sfdr = float(metrics.get("sfdr_db", -math.inf))
     power = float(metrics.get("average_power_w", math.inf))
-    inl_max = float(metrics.get("inl_max_lsb", math.inf))
-    dnl_max = float(metrics.get("dnl_max_lsb", math.inf))
-    monotonic = bool(metrics.get("monotonic", False))
-    linearity_valid = bool(metrics.get("linearity_valid", False))
-    linearity_missing = int(metrics.get("linearity_missing_codes", 16))
     return [
         Check(
             "transfer",
@@ -732,20 +645,6 @@ def score(metrics: dict[str, object], run_summary: dict[str, object]) -> list[Ch
             f"{1e3 * power:.3f} mW total (supplies {1e3 * float(metrics.get('supply_power_w', math.nan)):.3f}, "
             f"clock pin {1e3 * float(metrics.get('clock_pin_power_w', math.nan)):.3f}, "
             f"inputs {1e3 * float(metrics.get('input_pin_power_w', math.nan)):.3f})",
-        ),
-        Check(
-            "inl",
-            complete and linearity_valid and inl_max <= LIMITS["inl_max_lsb"],
-            f"|INL|={inl_max:.3f} LSB valid={linearity_valid}",
-        ),
-        Check(
-            "dnl",
-            complete
-            and linearity_valid
-            and linearity_missing == 0
-            and dnl_max <= LIMITS["dnl_max_lsb"]
-            and monotonic,
-            f"|DNL|={dnl_max:.3f} LSB monotonic={monotonic} missing={linearity_missing}",
         ),
     ]
 

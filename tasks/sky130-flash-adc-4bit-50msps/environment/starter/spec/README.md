@@ -49,28 +49,24 @@ Each check passes or fails, and must pass at every graded point; the reward is
 | Check | Requirement |
 |---|---|
 | `transfer` | A full-rate ascending sequence through all 16 code centers converts with zero errors and no missing code |
-| `inl` | Static INL at most 0.5 LSB |
-| `dnl` | Static DNL at most 0.5 LSB, monotonic, no missing code |
-| `sndr` | SNDR of a full-scale coherent sine at least 22 dB |
-| `sfdr` | SFDR of the same record at least 26 dB |
-| `power` | Average power from all external sources at most 5 mW |
+| `sndr` | SNDR of a full-scale coherent sine at least 24 dB |
+| `sfdr` | SFDR of the same record at least 29 dB |
+| `power` | Average power from all external sources at most 3 mW |
 
 Measurement definitions:
 
 - **Transfer.** Code `k` (0–15) is applied as `vinp = 0.05625 + 0.1125·k`,
   `vinn = 1.74375 − 0.1125·k` for one conversion each, after three warm-up
   conversions. The transfer run comes first; if it fails, nothing else runs.
-- **INL and DNL.** A slow differential ramp across the full ±1.7 V range,
-  sampled at the conversion rate, must pass through all 16 codes in order with
-  exactly 15 adjacent transitions. The first and last transition levels define
-  the endpoint LSB; INL is the deviation of each transition from that line,
-  DNL the deviation of each code width from one LSB.
-- **Why 22 dB and 26 dB.** An ideal 4-bit quantizer gives 6.02·4 + 1.76 =
+  Every code center converting correctly at every graded point means every
+  code transition lies within half an LSB of its ideal level, so static
+  linearity is graded through this check and the sine record; there is no
+  separate INL/DNL ramp.
+- **Why 24 dB and 29 dB.** An ideal 4-bit quantizer gives 6.02·4 + 1.76 =
   25.8 dB SNDR at full scale; on this record (1.7 V of the 1.8 V range, 32
-  samples) it gives 25.3 dB SNDR and 30.0 dB SFDR. 22 dB allows about half a
-  bit of loss (ENOB at least 3.4 bits) across PVT; 26 dB allows 4 dB of spur
-  growth, so a code-dependent error that adds one large spur fails even
-  when the total SNDR passes.
+  samples) it gives 25.3 dB SNDR and 30.0 dB SFDR. The limits allow about
+  1 dB of loss from that ideal across PVT (ENOB at least 3.7 bits), so a
+  code-dependent error that adds a spur or noise fails.
 - **SNDR and SFDR.** A full-scale (1.7 V differential peak) coherent sine is
   converted for 32 samples after three warm-up conversions. SNDR is the
   signal-bin power over all other non-DC power below Nyquist; SFDR is the
@@ -102,11 +98,10 @@ From `/app/testbench`, run each bench and analyze its raw file:
 
 ```bash
 ngspice -b -r transfer.raw tb_transfer_tt.spi && python3 analyze_flash_adc.py transfer transfer.raw
-ngspice -b -r linearity.raw tb_linearity_tt.spi && python3 analyze_flash_adc.py linearity linearity.raw
 ngspice -b -r dynamic.raw tb_dynamic_tt.spi && python3 analyze_flash_adc.py dynamic dynamic.raw
 ```
 
 They run at `tt`/1.8 V/27 C with the same circuit and metric definitions as
-grading, and shorter, different stimuli: an eight-code subset, a 64-sample ramp, and a
+grading, and shorter, different stimuli: an eight-code subset and a
 16-point sine at a different frequency. Grading uses its own sequences. The
 public benches do not apply the signoff rules.
