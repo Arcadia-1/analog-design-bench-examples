@@ -9,8 +9,7 @@ Evidence: instruction.md, spec/README.md, task.toml, all public and hidden bench
   build; agent image runs as `agent` with starter, spec, checker, guide and ngspice.
   Native Harbor 0.25.0 runs (docker): oracle reward 1, nop reward 0. Harbor 0.25.0
   TaskConfig parses task.toml. Reference: reward 1; a full verifier run takes about
-  7 min alone (5 PVT points x 3 benches, 4 in parallel), up to 11 min when the host
-  is shared.
+  4 min (5 PVT points x 2 benches, 4 in parallel).
 Novelty: the repository's only data-converter example.
 ```
 
@@ -22,11 +21,12 @@ Novelty: the repository's only data-converter example.
 | 2 | P0 | The old reference failed at the slow, cold, low-supply corner: 20 pF hold capacitors behind small switches tracked only 72 % of a one-code step in the 4.9 ns of acquisition. | Fixed: switches four times wider, 5 pF hold capacitors. At ±10 % supply it still misses one code at sf/1.62 V/−40 C, so the contract is ±5 %. |
 | 3 | P1 | Clock-pin and signal-input power were diagnostics only. | Fixed: power from `vdd`, `vrefp`, the clock pin and both inputs all count toward 5 mW. |
 | 4 | P2 | `vrefp` was an ideal source with no output impedance. | Fixed: 10 ohm output resistance; its current counts toward power. |
-| 5 | P2 | The SNDR and SFDR limits had no stated derivation. | Fixed: the spec gives the ideal 4-bit values for this record (25.3 dB SNDR, 30.0 dB SFDR) and what 22 dB and 26 dB allow. |
+| 5 | P2 | The SNDR and SFDR limits had no stated derivation and left 3–4 dB of slack. | Fixed: the spec gives the ideal 4-bit values for this record (25.3 dB SNDR, 30.0 dB SFDR); the limits are 24 dB and 29 dB, about 1 dB below the reference's worst case. |
+| 6 | P2 | The static INL/DNL ramp took 53 % of the verifier's time (699 s of 1311 s over five points). | Removed: the transfer check already requires every code center to convert correctly at every point, which keeps every transition within half an LSB of its ideal level; the sine record grades the rest. A full run now takes about 4 min instead of 7–8. |
+| 7 | P2 | The 5 mW power limit left 48 % slack. | Tightened to 3 mW (reference worst 2.58 mW). |
 
 Reference worst cases: SNDR 25.04 dB and SFDR 30.05 dB (sf/1.71 V/−40 C),
-|INL| 0.146 LSB, |DNL| 0.146 LSB, power 2.58 mW; every code correct at every
-point.
+power 2.58 mW; every code correct at every point.
 
 ## Reward-hacking checks
 
@@ -41,7 +41,7 @@ point.
 | `output-bits-swapped` | 0: 8 transfer errors at nominal |
 | `low-ohm-ladder` | 0: code error at ss/1.71 V/125 C and at one more point |
 | `weak-sample-switch` (the old switch width) | 0: passes at nominal, misses code 9 only at sf/1.71 V/−40 C |
-| Alternative `double-tail-one-hot-encoder` (different structure) | 1 |
+| Alternative `double-tail-one-hot-encoder` (different structure, 200 ohm ladder) | 1: SNDR 25.04 dB, SFDR 30.05 dB, power 2.02 mW |
 | Alternative `wider-comparators-200-ohm-ladder` (different sizing) | 1 |
 
 ## Conclusion

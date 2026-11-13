@@ -3,8 +3,7 @@
 Design a transistor-level, fully differential 4-bit flash ADC in Sky130: a
 comparator bank on a reference ladder and a thermometer-to-binary encoder,
 clocked by a single clock. Across process, supply and temperature it must
-convert every code correctly and meet linearity, dynamic-range and power
-limits.
+convert every code correctly and meet dynamic-range and power limits.
 
 - **Deliverable:** `/app/circuit.spi`, implementing
   `.subckt flash_adc_4bit clk dout3 dout2 dout1 dout0 vss vdd vinn vinp vrefn vrefp`.

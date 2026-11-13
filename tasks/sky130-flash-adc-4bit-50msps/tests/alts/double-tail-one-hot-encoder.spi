@@ -1,5 +1,5 @@
 * Alternative structure: double-tail comparators, NOR SR latches and a one-hot
-* ROM-style encoder, on the same kind of sampled ladder front end.
+* ROM-style encoder, on a 200 ohm-segment sampled ladder front end.
 
 .subckt dt_inv a y vdd vss
 XP y a vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
@@ -31,54 +31,48 @@ XN1 y a vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1
 XN2 y b vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1
 .ends dt_nor2
 
-* Sample switch: transmission gate, on while en = 1.
 .subckt dt_tg a b en enb vdd vss
 XN a en b vss sky130_fd_pr__nfet_01v8 l=0.15 w=128 nf=32
 XP a enb b vdd sky130_fd_pr__pfet_01v8 l=0.15 w=256 nf=64
 .ends dt_tg
 
-* Double-tail comparator. clk = 0: the input stage precharges di_p/di_n to vdd and
-* their NMOS clamps hold both outputs low. clk = 1: the input stage discharges
-* di_p/di_n at rates set by inp/inn; the side that falls first releases its output,
-* and the clkb-tailed latch drives it high (outp high when inp > inn).
 .subckt dt_comp clk clkb inp inn outp outn vdd vss
-XT1 t1 clk vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=16 nf=4
+XT1 t1 clk vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=8 nf=2
 XIP di_p inp t1 vss sky130_fd_pr__nfet_01v8 l=0.18 w=16 nf=4
 XIN di_n inn t1 vss sky130_fd_pr__nfet_01v8 l=0.18 w=16 nf=4
-XRP di_p clk vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
-XRN di_n clk vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
-XT2 t2 clkb vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=16 nf=4
-XLP1 outp outn t2 vdd sky130_fd_pr__pfet_01v8 l=0.15 w=8 nf=2
-XLP2 outn outp t2 vdd sky130_fd_pr__pfet_01v8 l=0.15 w=8 nf=2
-XLN1 outp outn vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
-XLN2 outn outp vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
-XCP outp di_p vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
-XCN outn di_n vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
+XRP di_p clk vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=2 nf=1
+XRN di_n clk vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=2 nf=1
+XT2 t2 clkb vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=8 nf=2
+XLP1 outp outn t2 vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
+XLP2 outn outp t2 vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
+XLN1 outp outn vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=1
+XLN2 outn outp vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=1
+XCP outp di_p vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=1
+XCN outn di_n vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=1
 .ends dt_comp
 
-* NOR SR latch: s = 1 sets q, r = 1 resets it, s = r = 0 holds.
 .subckt dt_sr s r q qb vdd vss
 XG1 r qb q vdd vss dt_nor2
 XG2 s q qb vdd vss dt_nor2
 .ends dt_sr
 
 .subckt flash_adc_4bit clk dout3 dout2 dout1 dout0 vss vdd vinn vinp vrefn vrefp
-RL1 s1 vrefn 100
-RL2 s2 s1 100
-RL3 s3 s2 100
-RL4 s4 s3 100
-RL5 s5 s4 100
-RL6 s6 s5 100
-RL7 s7 s6 100
-RL8 s8 s7 100
-RL9 s9 s8 100
-RL10 s10 s9 100
-RL11 s11 s10 100
-RL12 s12 s11 100
-RL13 s13 s12 100
-RL14 s14 s13 100
-RL15 s15 s14 100
-RL16 vrefp s15 100
+RL1 s1 vrefn 200
+RL2 s2 s1 200
+RL3 s3 s2 200
+RL4 s4 s3 200
+RL5 s5 s4 200
+RL6 s6 s5 200
+RL7 s7 s6 200
+RL8 s8 s7 200
+RL9 s9 s8 200
+RL10 s10 s9 200
+RL11 s11 s10 200
+RL12 s12 s11 200
+RL13 s13 s12 200
+RL14 s14 s13 200
+RL15 s15 s14 200
+RL16 vrefp s15 200
 XCLK1 clk clks vdd vss dt_inv
 XCLK2 clk clkb vdd vss dt_inv
 XTGP vinp vhp clks clk vdd vss dt_tg
