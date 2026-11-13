@@ -11,8 +11,7 @@ A formal task must provide all four of the following:
 3. **A fair evaluation.** Legal implementations that meet the published contract pass on electrical behavior without reproducing or exposing the reference's private internal connectivity.
 4. **Complete tests.** The final verifier measures every capability needed to support the task's claims, at the declared operating conditions.
 
-Task review follows the maintainers' review guide; `reviews/` holds one report per
-example task. Before promotion, a
+Task review follows the maintainers' review guide. Before promotion, a
 candidate must be compared with the existing tasks. A deliberate variant must
 state the externally measurable capability that distinguishes it from existing
 tasks.
@@ -124,7 +123,7 @@ workdir = "/app"
 
 - `[metadata]` holds only the four taxonomy fields above. Do not add maturity levels, maturity notes, display titles or descriptions, checker flags, or other repository-private keys; status and evidence belong in PRs and audit reports, and checker flags belong in `tests/test.sh`.
 - The agent runs as an unprivileged user (`agent`, uid 1000) that owns `/app`; the verifier runs as root. The environment image creates that user.
-- Benchmark runs use mini-swe-agent with a 2-hour agent timeout (`[agent] timeout_sec = 7200`) and a limit of 100 steps (one model call is one step), with no cost limit. Harbor's `task.toml` has no step field, so the step limit is set when the run starts, and only this command gives a comparable run. Use the Harbor release pinned in `toolchains.toml`; `<provider>/<model>` is a LiteLLM model name, and the model's API key and endpoint come from `.env` (never write a key into a command or a file in the repository). Other agents and settings are not benchmark runs.
+- Benchmark runs use mini-swe-agent with a 2-hour agent timeout (`[agent] timeout_sec = 7200`) and a limit of 100 steps (one model call is one step), with no cost limit. Harbor's `task.toml` has no step field, so the step limit is set when the run starts, and only this command gives a comparable run. Use Harbor 0.25.0 (`uv tool install "harbor==0.25.0"`); `<provider>/<model>` is a LiteLLM model name, and the model's API key and endpoint come from `.env` (never write a key into a command or a file in the repository). Other agents and settings are not benchmark runs.
 
   ```bash
   harbor run \
@@ -136,10 +135,10 @@ workdir = "/app"
     --path <task-directory>
   ```
 
-- Every `task.toml` must parse with the pinned upstream Harbor `harbor.models.task.config.TaskConfig`; a repository-written checker does not replace that parser. The Harbor release is pinned in the `[harbor]` table of `toolchains.toml`. Validation records the exact Harbor commit and version.
+- Every `task.toml` must parse with the pinned upstream Harbor `harbor.models.task.config.TaskConfig`; a repository-written checker does not replace that parser. The Harbor release is 0.25.0. Validation records the exact Harbor commit and version.
 - Upstream schema failures and Analog Arena policy failures are reported separately as `upstream_schema_error` and `repository_policy_error`.
 - `environment/` and `tests/` are independent Docker contexts and both must build on their own. The verifier must not inherit the agent image.
-- Use open-source tools and PDKs that anyone can obtain. Pinning tool or base-image versions is not required. Do not depend on a site-private server, service, or locally built image. Repository-maintained Sky130 tasks keep using the shared runtime locked in `toolchains.toml`.
+- Use open-source tools and PDKs that anyone can obtain. Pinning tool or base-image versions is not required. Do not depend on a site-private server, service, or locally built image. Sky130 tasks build on the public simulator image `ghcr.io/arcadia-1/circuit-bench-sky130-ngspice`, pinned by digest in each Dockerfile.
 - The agent environment contains only `environment/starter/` and other explicitly public material. Hidden benches, verifier implementation, reference circuits, and golden fixtures must not enter that image.
 - The tests context contains the hidden verifier but no reference/golden solution. It receives only declared artifacts at runtime. Repository-level verifier self-tests that need a golden belong outside the submitted-design scoring path.
 - Analog Arena declares the agent's deliverable directly, for example `artifacts = ["/app/circuit.spi"]`. Harbor transfers a declared artifact to the same path in the fresh verifier container. Use a `verifier.collect` hook only when a task genuinely needs to snapshot runtime state that is not already a deliverable file.
