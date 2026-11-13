@@ -3,7 +3,7 @@ artifacts = ["/app/circuit.spi"]
 
 [task]
 name = "analog-arena/sky130-flash-adc-4bit-50msps"
-description = "Design a Sky130 4-bit 50 MS/s differential flash ADC with no conversion errors or missing codes, at most 0.5 LSB INL and DNL, at least 22 dB SNDR and 26 dB SFDR, and at most 5 mW drawn from all external sources."
+description = "Design a Sky130 4-bit 50 MS/s differential flash ADC with no conversion errors or missing codes, at most 0.5 LSB INL and DNL, at least 22 dB SNDR and 26 dB SFDR, and at most 5 mW drawn from all external sources, across PVT with a 1.71-1.89 V supply."
 authors = [{ name = "Kezhuo Liu" }]
 
 [metadata]

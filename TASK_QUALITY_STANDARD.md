@@ -120,7 +120,7 @@ storage_mb = 10240
 workdir = "/app"
 ```
 
-- `[metadata]` holds only the Terminal-Bench taxonomy fields above. Do not add maturity levels, maturity notes, display titles or descriptions, checker flags, or other repository-private keys; status and evidence belong in PRs and audit reports, and checker flags belong in `tests/test.sh`.
+- `[metadata]` holds only the four taxonomy fields above. Do not add maturity levels, maturity notes, display titles or descriptions, checker flags, or other repository-private keys; status and evidence belong in PRs and audit reports, and checker flags belong in `tests/test.sh`.
 - The agent runs as an unprivileged user (`agent`, uid 1000) that owns `/app`; the verifier runs as root. The environment image creates that user.
 - Benchmark runs use mini-swe-agent with a 2-hour agent timeout (`[agent] timeout_sec = 7200`) and a limit of 100 steps (one model call is one step), with no cost limit. Harbor's `task.toml` has no step field: the run's mini-swe-agent configuration sets `agent.step_limit: 100` and `agent.cost_limit: 0`.
 

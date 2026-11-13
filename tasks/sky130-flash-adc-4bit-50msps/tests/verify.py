@@ -39,6 +39,7 @@ PINS = (
 MOS = {"sky130_fd_pr__nfet_01v8", "sky130_fd_pr__pfet_01v8"}
 OPERATING = {
     "supply_v": 1.8,
+    "reference_v": 1.8,
     "sample_rate_hz": 50e6,
     "transfer_warmup_cycles": 3,
 }
@@ -380,8 +381,9 @@ def extract_metrics(
     supply = float(operating["supply_v"])
     # Every external source that feeds the circuit counts toward the power limit:
     # the vdd and vrefp supplies, the clock pin and both signal inputs.
+    reference = float(operating["reference_v"])
     supply_power = mean([
-        -supply * (vdd + vrefp)
+        -(supply * vdd + reference * vrefp)
         for vdd, vrefp in zip(dynamic_vectors["i(vdd)"], dynamic_vectors["i(vrefp)"])
     ])
     clock_pin_power = mean([
@@ -496,6 +498,8 @@ def run_simulations(
     model: Path,
     benches: Path,
     jobs: int,
+    operating: dict[str, float | int] = OPERATING,
+    edits: dict[str, str] | None = None,
 ) -> tuple[dict[str, object], dict[str, object]]:
     started = time.monotonic()
     transfer_case = ("transfer", benches / "tb_transfer.spi")
@@ -511,7 +515,7 @@ def run_simulations(
             deck = work / f"{name}.spi"
             raw_path = work / f"{name}.raw"
             deck.write_text(
-                source.read_text()
+                apply_edits(source.read_text(), edits or {})
                 .replace(CANONICAL_MODEL, str(model.resolve()))
                 .replace(CANONICAL_DESIGN, str(design.resolve()))
             )
@@ -547,7 +551,7 @@ def run_simulations(
                 "failed_runs": [f"{transfer_name}: {transfer_error}"],
                 "blocked_runs": ["dynamic", "inl_dnl"],
             }
-        transfer_metrics = extract_metrics_for_transfer(transfer_vectors)
+        transfer_metrics = extract_metrics_for_transfer(transfer_vectors, operating)
         transfer_valid = (
             transfer_metrics["transfer_codes"] == list(range(16))
             and transfer_metrics["transfer_error_count"] == 0
@@ -576,7 +580,7 @@ def run_simulations(
             if vector is not None and error is None
         }
         failures = [f"{name}: {error}" for name, _, _, error in results if error]
-        metrics = extract_metrics(vectors) if len(vectors) == 3 else {}
+        metrics = extract_metrics(vectors, operating) if len(vectors) == 3 else {}
         summary = {
             "integrity": {
                 "passed": True,
@@ -592,23 +596,93 @@ def run_simulations(
         return metrics, summary
 
 
+# Representative PVT points: the nominal point first, then corners of the
+# 1.71-1.89 V supply and -40-125 C temperature ranges at the five process corners.
+NOMINAL_POINT = ("tt", 1.8, 27)
+PVT_POINTS = (
+    NOMINAL_POINT,
+    ("ss", 1.71, 125),
+    ("ff", 1.89, -40),
+    ("sf", 1.71, -40),
+    ("fs", 1.89, 125),
+)
+
+
+def point_name(point: tuple[str, float, int]) -> str:
+    corner, vdd, temp = point
+    return f"{corner}/{vdd:.2f}V/{temp:+d}C"
+
+
+def apply_edits(text: str, edits: dict[str, str]) -> str:
+    for old, new in edits.items():
+        if old not in text:
+            raise ValueError(f"bench edit not found: {old!r}")
+        text = text.replace(old, new)
+    return text
+
+
+def point_edits(point: tuple[str, float, int]) -> dict[str, str]:
+    corner, vdd, temp = point
+    return {
+        f'.lib "{CANONICAL_MODEL}" tt': f'.lib "{CANONICAL_MODEL}" {corner}',
+        ".temp 27": f".temp {temp}",
+        "VDD vdd vss 1.8": f"VDD vdd vss {vdd:g}",
+        "PULSE(0 1.8 ": f"PULSE(0 {vdd:g} ",
+    }
+
+
 def evaluate(
     design: Path,
     model: Path,
     benches: Path,
     jobs: int = 1,
-) -> tuple[dict[str, object], dict[str, object]]:
+) -> list[tuple[str, dict[str, object], dict[str, object]]]:
+    """Return (point, metrics, run summary) for each simulated PVT point."""
     passed, message = integrity(design)
     if not passed:
-        return {}, {
+        return [(point_name(NOMINAL_POINT), {}, {
             "integrity": {"passed": False, "message": message},
             "runs": 0,
             "workers": 0,
             "wall_clock_s": 0.0,
             "per_run_time_s": {},
             "failed_runs": [],
-        }
-    return run_simulations(design, model, benches, jobs)
+        })]
+
+    def run(point):
+        operating = dict(OPERATING, supply_v=point[1])
+        metrics, summary = run_simulations(design, model, benches, 1, operating, point_edits(point))
+        return point_name(point), metrics, summary
+
+    results = [run(NOMINAL_POINT)]
+    if score(results[0][1], results[0][2])[0].passed:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
+            results.extend(executor.map(run, PVT_POINTS[1:]))
+    return results
+
+
+def score_points(results) -> list[Check]:
+    """A check passes only when it passes at every simulated point; the nominal
+    transfer gate failing fails every check."""
+    per_point = [(name, score(metrics, summary)) for name, metrics, summary in results]
+    nominal_name, nominal_checks = per_point[0]
+    if len(per_point) < len(PVT_POINTS):
+        return [
+            Check(check.name, False, f"at {nominal_name}: {check.message}"
+                  + ("" if not check.passed else " (other PVT points not run: nominal transfer failed)"))
+            for check in nominal_checks
+        ]
+    combined = []
+    for index, check in enumerate(nominal_checks):
+        failures = [(name, checks[index]) for name, checks in per_point if not checks[index].passed]
+        if failures:
+            name, failed = failures[0]
+            combined.append(Check(check.name, False, f"at {name}: {failed.message}"
+                                  + (f" (fails at {len(failures)} of {len(per_point)} points)" if len(failures) > 1 else "")))
+        else:
+            combined.append(Check(check.name, True, "all points: " + "; ".join(
+                f"{name} {checks[index].message}" for name, checks in per_point)))
+    return combined
 
 
 def score(metrics: dict[str, object], run_summary: dict[str, object]) -> list[Check]:
@@ -740,11 +814,13 @@ def main() -> int:
     parser.add_argument("--model", type=Path, default=Path(CANONICAL_MODEL))
     parser.add_argument("--benches", type=Path, default=Path(__file__).resolve().parent / "benches")
     parser.add_argument("--output", type=Path, default=Path("/logs/verifier"))
-    parser.add_argument("--jobs", type=int, default=1)
+    parser.add_argument("--jobs", type=int, default=4)
     args = parser.parse_args()
     try:
-        metrics, run_summary = evaluate(args.design, args.model, args.benches, args.jobs)
-        checks = score(metrics, run_summary)
+        results = evaluate(args.design, args.model, args.benches, args.jobs)
+        checks = score_points(results)
+        metrics = {name: point_metrics for name, point_metrics, _ in results}
+        run_summary = {"points": {name: summary for name, _, summary in results}}
     except Exception as exc:  # noqa: BLE001 - always emit deterministic verifier artifacts
         metrics = {}
         run_summary = {

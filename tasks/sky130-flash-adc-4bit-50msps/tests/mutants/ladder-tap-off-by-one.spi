@@ -1,5 +1,7 @@
 * Mutant: comparator 4 is tied to the wrong ladder tap, so one threshold moves by a full LSB
-* Passing transistor-level reference using a differential comparator bank.
+* Reference: 16-segment ladder, transmission-gate sampling onto 5 pF hold capacitors,
+* resistively averaged comparator inputs, StrongARM comparators with NAND SR latches,
+* and an XOR thermometer-to-binary encoder.
 .subckt fa_inv a y vdd vss
 XP y a vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
 XN y a vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=1
@@ -13,8 +15,8 @@ XN2 nx b vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
 .ends fa_nand2
 
 .subckt fa_tg a b en enb vdd vss
-XN a en b vss sky130_fd_pr__nfet_01v8 l=0.15 w=32 nf=8
-XP a enb b vdd sky130_fd_pr__pfet_01v8 l=0.15 w=64 nf=16
+XN a en b vss sky130_fd_pr__nfet_01v8 l=0.15 w=128 nf=32
+XP a enb b vdd sky130_fd_pr__pfet_01v8 l=0.15 w=256 nf=64
 .ends fa_tg
 
 .subckt fa_nand4 a b c d y vdd vss
@@ -79,8 +81,8 @@ XCLK clk clks vdd vss fa_inv
 * Shared differential top-plate track-and-hold.
 XTGP vinp vhp clks clk vdd vss fa_tg
 XTGN vinn vhn clks clk vdd vss fa_tg
-CHP vhp s8 20p
-CHN vhn s8 20p
+CHP vhp s8 5p
+CHN vhn s8 5p
 R1PA vhp vp1 200k
 R1PB s15 vp1 200k
 R1NA vhn vn1 200k
