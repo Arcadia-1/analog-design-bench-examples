@@ -1,8 +1,9 @@
 * Alternative: a different comparator, latch and encoder from the reference.
 * - ladder of 8 x 400 ohm with 2 pF tap decoupling
-* - double-tail dynamic comparators (input stage clocked by ck, latch stage by its complement ckb)
+* - double-tail dynamic comparators (input stage clocked by ck, latch stage by its complement ckb), with 10 fF on
+*   the stage-1 nodes so the latch's reset devices do not kick them above vdd
 * - NAND SR latches behind equal inverters
-* - thermometer -> one-hot (active low) -> binary through NAND4 gates
+* - thermometer -> one-hot (active low) -> binary through four-input NANDs built from two NAND2 and an OR
 
 .subckt dt_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=3u l=0.28u
@@ -27,14 +28,14 @@ MN2 nx b vss vss nfet_03v3 w=3u l=0.28u
 .ends dt_nand2
 
 .subckt dt_nand4 a b c d y vdd vss
-MP1 y a vdd vdd pfet_03v3 w=3u l=0.28u
-MP2 y b vdd vdd pfet_03v3 w=3u l=0.28u
-MP3 y c vdd vdd pfet_03v3 w=3u l=0.28u
-MP4 y d vdd vdd pfet_03v3 w=3u l=0.28u
-MN1 y a n1 vss nfet_03v3 w=3u l=0.28u m=2
-MN2 n1 b n2 vss nfet_03v3 w=3u l=0.28u m=2
-MN3 n2 c n3 vss nfet_03v3 w=3u l=0.28u m=2
-MN4 n3 d vss vss nfet_03v3 w=3u l=0.28u m=2
+* !(a.b.c.d) as NAND2(a,b) and NAND2(c,d) into an OR (NOR2 + inverter): two-high NMOS stacks at most
+XA a b x1 vdd vss dt_nand2
+XB c d x2 vdd vss dt_nand2
+MP1 z x1 pz vdd pfet_03v3 w=6u l=0.28u
+MP2 pz x2 vdd vdd pfet_03v3 w=6u l=0.28u
+MN1 z x1 vss vss nfet_03v3 w=1.5u l=0.28u
+MN2 z x2 vss vss nfet_03v3 w=1.5u l=0.28u
+XO z y vdd vss dt_inv
 .ends dt_nand4
 
 .subckt dt_comp ck ckb vinp vinn up dn vdd vss
@@ -43,16 +44,19 @@ MN4 n3 d vss vss nfet_03v3 w=3u l=0.28u m=2
 MT1 t1 ck vss vss nfet_03v3 w=1u l=0.93u
 MIP fn vinp t1 vss nfet_03v3 w=4u l=0.28u
 MIN fp vinn t1 vss nfet_03v3 w=4u l=0.28u
-MPN fn ck vdd vdd pfet_03v3 w=4u l=0.28u
-MPP fp ck vdd vdd pfet_03v3 w=4u l=0.28u
+MPN fn ck vdd vdd pfet_03v3 w=2u l=0.28u
+MPP fp ck vdd vdd pfet_03v3 w=2u l=0.28u
 * stage 2: latch powered through ckb; up/dn held low while fn/fp are high, released as they fall
 MT2 t2 ckb vdd vdd pfet_03v3 w=4u l=0.28u m=4
 MLP1 up dn t2 vdd pfet_03v3 w=4u l=0.28u
 MLP2 dn up t2 vdd pfet_03v3 w=4u l=0.28u
 MLN1 up dn vss vss nfet_03v3 w=2u l=0.28u
 MLN2 dn up vss vss nfet_03v3 w=2u l=0.28u
-MRN up fn vss vss nfet_03v3 w=2u l=0.28u
-MRP dn fp vss vss nfet_03v3 w=2u l=0.28u
+MRN up fn vss vss nfet_03v3 w=1u l=0.28u
+MRP dn fp vss vss nfet_03v3 w=1u l=0.28u
+* stage-1 node capacitance: limits how far the reset devices' gate coupling lifts fn/fp
+CFN fn vss 10f
+CFP fp vss 10f
 .ends dt_comp
 
 .subckt dt_hold up dn q vdd vss

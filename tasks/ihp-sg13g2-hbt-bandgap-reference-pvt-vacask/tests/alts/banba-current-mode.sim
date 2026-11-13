@@ -1,0 +1,63 @@
+// Alternative design, a different topology: a Banba current-mode bandgap. Cascoded PMOS sources feed equal
+// currents into node a (HBT q1 in parallel with r1a) and node b (r3 plus 24 HBT emitters, in parallel with r1b);
+// an OTA holds a = b, so each current is dVbe/r3 + Vbe/r1. A third copy flows into rout, and a unity-gain
+// two-stage follower drives vref from that node. Startup: a weak NMOS pulls the source gates down while the
+// core output is low.
+subckt bandgap (vdd vss en vref)
+  xinvp (enb en vdd vdd) sg13_hv_pmos w=1u l=0.5u
+  xinvn (enb en vss vss) sg13_hv_nmos w=1u l=0.5u
+  xpb (pb pb vdd vdd) sg13_hv_pmos w=2u l=4u
+  rb (pb nb vss) rppd w=0.5u l=1100u
+  xsb (nb en vss vss) sg13_hv_nmos w=2u l=0.5u
+  xpbo (pb en vdd vdd) sg13_hv_pmos w=1u l=0.5u
+  // core current sources, cascoded
+  xm1 (m1 g vdd vdd) sg13_hv_pmos w=12u l=12u m=2
+  xm2 (m2 g vdd vdd) sg13_hv_pmos w=12u l=12u m=2
+  xm3 (m3 g vdd vdd) sg13_hv_pmos w=12u l=12u m=2
+  xk1 (a vcas m1 vdd) sg13_hv_pmos w=8u l=1u m=2
+  xk2 (b vcas m2 vdd) sg13_hv_pmos w=8u l=1u m=2
+  xk3 (vc vcas m3 vdd) sg13_hv_pmos w=8u l=1u m=2
+  // cascode bias: vcas = vdd - Vsg of a weak PMOS diode
+  xpn (nb2 pb vdd vdd) sg13_hv_pmos w=2u l=4u
+  xnd (nb2 nb2 vss vss) sg13_hv_nmos w=4u l=4u
+  xnc (vcas nb2 vss vss) sg13_hv_nmos w=4u l=4u
+  xcd (vcas vcas vdd vdd) sg13_hv_pmos w=1u l=10u
+  q1 (a a vss vss) npn13G2 nx=1
+  r1a (a vss vss) rppd w=0.5u l=467u
+  r3 (b e2 vss) rppd w=0.5u l=105u
+  q2a (e2 e2 vss vss) npn13G2 nx=8
+  q2b (e2 e2 vss vss) npn13G2 nx=8
+  q2c (e2 e2 vss vss) npn13G2 nx=8
+  r1b (b vss vss) rppd w=0.5u l=467u
+  rout (vc vss vss) rppd w=0.5u l=480u
+  // core amplifier: PMOS pair with diode loads; the b-side current is mirrored into g
+  xpt (tail g vdd vdd) sg13_hv_pmos w=12u l=12u m=1
+  xp1 (d1 a tail vdd) sg13_hv_pmos w=80u l=6u
+  xp2 (d2 b tail vdd) sg13_hv_pmos w=80u l=6u
+  xn1 (d1 d1 vss vss) sg13_hv_nmos w=20u l=8u
+  xn2 (d2 d2 vss vss) sg13_hv_nmos w=20u l=8u
+  xn5 (g d2 vss vss) sg13_hv_nmos w=20u l=8u
+  xn3 (pa d1 vss vss) sg13_hv_nmos w=20u l=8u
+  xp3 (pa pa vdd vdd) sg13_hv_pmos w=8u l=8u
+  xpg (g pa vdd vdd) sg13_hv_pmos w=8u l=8u
+  xcg (vdd g) cap_cmim w=80u l=80u m=1
+  xdg (g en vdd vdd) sg13_hv_pmos w=1u l=0.5u
+  // startup: while vc is low, st is high and a weak NMOS pulls g down
+  xsp (st vss vdd vdd) sg13_hv_pmos w=1u l=40u
+  xsn (st vc vss vss) sg13_hv_nmos w=4u l=1u
+  xst (g st sx vss) sg13_hv_nmos w=1u l=30u
+  xse (sx en vss vss) sg13_hv_nmos w=1u l=0.5u
+  // unity-gain buffer: vc -> vref
+  xbt1 (s1 pb vdd vdd) sg13_hv_pmos w=2u l=4u m=1
+  xbt2 (s2 pb vdd vdd) sg13_hv_pmos w=2u l=4u m=1
+  rdeg (s1 s2 vss) rppd w=0.5u l=20u
+  xb1 (ob vc s1 vdd) sg13_hv_pmos w=20u l=2u
+  xb2 (db vref s2 vdd) sg13_hv_pmos w=20u l=2u
+  xbn1 (ob db vss vss) sg13_hv_nmos w=10u l=4u
+  xbn2 (db db vss vss) sg13_hv_nmos w=10u l=4u
+  xb5 (vref ob vss vss) sg13_hv_nmos w=10u l=4u m=6
+  xbu (vref pb vdd vdd) sg13_hv_pmos w=2u l=4u m=6
+  xc2 (ob cz2) cap_cmim w=90u l=90u
+  rz2 (cz2 vref vss) rppd w=0.5u l=10u
+  xdv (vref enb vss vss) sg13_hv_nmos w=1u l=0.5u
+ends

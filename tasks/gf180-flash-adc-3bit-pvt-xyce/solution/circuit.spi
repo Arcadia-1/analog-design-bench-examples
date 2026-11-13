@@ -2,7 +2,7 @@
 * - resistor ladder from vrefn to vrefp (8 x 500 ohm, 0.2 V taps) with 2 pF tap decoupling against comparator kickback
 * - a two-inverter clock buffer: the clk pin drives one small inverter gate only
 * - seven StrongARM comparators (evaluate while the buffered clock is high, precharge while low)
-* - a buffered SR latch per comparator that holds the decision through the precharge phase
+* - a ratioed set/reset latch per comparator that holds the decision through the precharge phase
 * - a static CMOS thermometer-to-binary encoder
 
 .subckt fa_inv a y vdd vss
@@ -46,19 +46,20 @@ MPC2 outp clk vdd vdd pfet_03v3 w=2u l=0.28u
 MPC3 dx clk vdd vdd pfet_03v3 w=2u l=0.28u
 MPC4 dy clk vdd vdd pfet_03v3 w=2u l=0.28u
 .ends fa_comp
-.subckt fa_nor2 a b y vdd vss
-MP1 y a px vdd pfet_03v3 w=4u l=0.28u m=2
-MP2 px b vdd vdd pfet_03v3 w=4u l=0.28u m=2
-MN1 y a vss vss nfet_03v3 w=2u l=0.28u
-MN2 y b vss vss nfet_03v3 w=2u l=0.28u
-.ends fa_nor2
 .subckt fa_hold outp outn q vdd vss
 * Both comparator outputs go through equal inverters, so the comparator sees the same load whatever the latch
-* holds. NOR SR latch: holds while both inverter outputs are low (comparator precharge); q = 1 when outn fell.
+* holds. Ratioed set/reset latch: s (outn fell) pulls qb low, r (outp fell) pulls qn low, and two weak
+* cross-coupled inverters hold the state through the comparator's precharge phase; q = 1 when outn fell.
+* There are no series stacks, so every node is driven and none can be pumped past a rail.
 XIS outn s vdd vss fa_inv
 XIR outp r vdd vss fa_inv
-XG1 r qb q vdd vss fa_nor2
-XG2 s q qb vdd vss fa_nor2
+MSET qb s vss vss nfet_03v3 w=4u l=0.28u m=2
+MRST qn r vss vss nfet_03v3 w=4u l=0.28u m=2
+MKP1 qn qb vdd vdd pfet_03v3 w=1u l=0.28u
+MKN1 qn qb vss vss nfet_03v3 w=0.5u l=0.28u
+MKP2 qb qn vdd vdd pfet_03v3 w=1u l=0.28u
+MKN2 qb qn vss vss nfet_03v3 w=0.5u l=0.28u
+XO qb q vdd vss fa_inv
 .ends fa_hold
 .subckt flash_adc_3bit vss vdd vrefn vrefp clk vin b2 b1 b0
 XCK clk ck vdd vss fa_clkbuf
