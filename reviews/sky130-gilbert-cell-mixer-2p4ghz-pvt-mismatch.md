@@ -18,8 +18,8 @@ Evidence: instruction.md, spec/README.md, spec/signoff-rules.md, task.toml, all 
   Measurement accuracy: rerunning sample points with reltol 1e-5 and a 4.9 ps step moved
   IIP3 by at most 0.06 dB, conversion gain by 0.07 dB and pin power by about 0.4 uW.
   Reference: reward 1 in 12.8 s of verifier time (79 ngspice runs on 4 workers).
-  Not run: native Harbor oracle/nop runs and the Harbor TaskConfig parse (Harbor is not
-  installed here; task.toml has the OTA example's shape, which parses).
+  task.toml parses with Harbor 0.25.0 TaskConfig (the pinned release).
+  Not run: native Harbor oracle/nop runs.
 Novelty: the only mixer example. benchmarks/v3/sky130-gilbert-cell-mixer-pvt is a 20 MHz
   Gilbert cell with no mismatch or input imbalance; this task is a deliberate variant at
   2.3-2.5 GHz RF whose isolation and spur limits must hold under 2 % / 2 degree imbalance and

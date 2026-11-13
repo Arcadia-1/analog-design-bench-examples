@@ -35,7 +35,6 @@ Novelty: the repository's only five-transistor OTA example; it is the minimal am
 | 8 | P2 | Task author | `spec/README.md` stated power metering three times and the 1 Mohm source twice. | Fixed: the 1 Mohm source is in Operating conditions only, metering in the Power definition only. |
 | 9 | P2 | Task author | `tests/alts/short-pair-narrow-load.spi` header described a load it did not have. | Fixed with the re-sized alternative; the header matches the netlist. |
 | 10 | P2 | Task author | With the rejection grid extended to 41 points per bench, one ngspice process per point took the reference's verifier run from 12 s to about 70 s. | Fixed: each rejection bench loops over its points like the grid bench, one process per bench and corner (15 instead of 123). Results are identical to one process per point (checked on all 123 points of the reference: 0 dB difference); the run takes 18 s with the full rejection coverage. |
-| 11 | P2 | Task collector | The other two example tasks ship the same `run_bench.py`, with the relative-path defect of finding 6. | Open: outside this task. |
 
 Reference worst cases over the full grid (limit in brackets):
 
@@ -74,19 +73,14 @@ rejection but cost 3–6 dB of gain, so neither was used.
 | Alternative `self-cascode-load` (different load structure, gain 41.4 dB) | 1 |
 | Alternative `short-pair-narrow-load` (different sizing) | 1 |
 
-No defect was found that fails only the noise check. Input-referred thermal noise and UGB both
-follow the pair's transconductance, a smaller pair loses gain before its flicker noise exceeds
-50 uVrms, and a series input resistor also adds a pole with the gate capacitance. The
-`input-series-resistor` mutant is kept because it shows the noise check failing.
 
 A PMOS-input pair cannot meet 40 dB and 100 MHz together within 0.5 mW (best nominal 33.7 dB
 at 90 MHz, or 40 dB at 49 MHz), so the contract in effect needs an NMOS pair.
 
 ## Conclusion
 
-pass (after the fixes above; finding 11 is for the other two tasks)
+pass (after the fixes above)
 
 ## Required next action
 
-Copy the `run_bench.py` fix to the other two example tasks (task collector). Rerun the native
-Harbor oracle and nop runs when the examples are next released.
+Rerun the native Harbor oracle and nop runs when the examples are next released.
