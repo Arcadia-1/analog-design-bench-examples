@@ -1,14 +1,9 @@
 # Analog Design Bench: example tasks
 
-Three complete [Harbor](https://github.com/laude-institute/harbor) tasks, each a
-model for writing a new Analog Design Bench task. An agent designs a Sky130
-circuit in `/app/circuit.spi`; a hidden ngspice verifier scores it. Each task
-directory is self-contained. The rules are in
-[`TASK_QUALITY_STANDARD.md`](TASK_QUALITY_STANDARD.md).
-
-- [`tasks/sky130-ota-5t-gain40-pm60-noise50uv-pvt`](tasks/sky130-ota-5t-gain40-pm60-noise50uv-pvt/): five-transistor OTA
-- [`tasks/sky130-flash-adc-3bit-pvt`](tasks/sky130-flash-adc-3bit-pvt/): 3-bit flash ADC
-- [`tasks/sky130-gilbert-cell-mixer-2p4ghz-pvt-mismatch`](tasks/sky130-gilbert-cell-mixer-2p4ghz-pvt-mismatch/): 2.4 GHz Gilbert-cell mixer
+Three example harbor tasks, each a model for writing a new Analog Design Bench task. 
+An agent designs an analog circuit in `/app/circuit.spi`; a hidden verifier scores it. 
+Each task directory is self-contained. 
+The rules are in [`TASK_QUALITY_STANDARD.md`](TASK_QUALITY_STANDARD.md).
 
 ## Run
 
