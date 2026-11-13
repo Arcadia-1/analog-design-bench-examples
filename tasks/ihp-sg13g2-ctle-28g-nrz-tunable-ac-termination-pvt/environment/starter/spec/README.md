@@ -77,11 +77,11 @@ applies at every graded point and code.
 | `output_polarity` | The 1 MHz differential gain is non-inverting (positive real part) |
 | `inband_flatness` | From 1 MHz to 14 GHz, `G` at most 1 dB above the larger of `G_LF` and `G_14`, and never below `G_LF - 6 dB` |
 | `above_nyquist_peaking` | From 14 GHz to 40 GHz, `G` at most 3 dB above `G_14` |
-| `bandwidth_floor` | The first falling crossing of `G_14 - 3 dB` above 14 GHz is at 17 GHz or higher; a response still above it at 40 GHz passes |
-| `forward_reverse_ratio` | `R(f)` at least 10 dB from 100 MHz to 14 GHz |
+| `bandwidth_floor` | The first falling crossing of `G_14 - 3 dB` above 14 GHz is at 25 GHz or higher; a response still above it at 40 GHz passes |
+| `forward_reverse_ratio` | `R(f)` at least 15 dB from 100 MHz to 14 GHz |
 | `input_coupling_corner` | DC transfer at most 1 mV at every code; low-frequency corner at most 20 kHz |
 | `input_termination_impedance` | Single-ended input impedance at 1 MHz from 40 to 60 ohm at each input |
-| `input_return_loss` | Single-ended `abs(S11)` of each input and differential `abs(Sdd11)` at every code at most -10 dB from 100 MHz to 14 GHz |
+| `input_return_loss` | Single-ended `abs(S11)` of each input and differential `abs(Sdd11)` at every code at most -15 dB from 100 MHz to 14 GHz |
 | `common_mode_stability` | Output common-mode peak-to-peak at most 1 mV from 3.1 to 4.1 us after the disturbances |
 | `differential_stability` | Differential output peak-to-peak at most 1 mV, and `abs(voutp-voutn)` at most 5 mV, from 3.1 to 4.1 us after the disturbances |
 | `bias_and_power` | Output common-mode error at most 75 mV, differential offset at most 5 mV, each output between `vss + 0.25 V` and `vdd - 0.25 V`, `vocm` tracking at least 9 mV per 10 mV, total power at most 60 mW |
@@ -95,15 +95,19 @@ applies at every graded point and code.
   The 1 dB minimum step keeps every code distinct at every point. The Nyquist
   boost `G_14 - G_LF` spans 6 to 18 dB, the range a 28 Gb/s NRZ receiver
   typically asks of its CTLE.
+- **Bandwidth.** 25 GHz, about 0.9 times the 28 GBd symbol rate, keeps the
+  equalizer's own roll-off above Nyquist from adding intersymbol interference
+  that the receiver would have to equalize again.
 - **Polarity.** The real part of `v(voutp)-v(voutn)` at 1 MHz must be
   positive, so an inverted output fails.
 - **Return loss.** Single-ended: with `gain=00`/`peak=00`, a 1 A AC current is
   injected into one input while the other is terminated in 50 ohm to the
   `vocm` pin; `Z = v(pin) - v(vocm)` and `S11 = (Z - 50)/(Z + 50)`, each pin in
   its own run. Differential: `Sdd11 = (v(vinp) - v(vinn)) - 1 V` from the AC
-  run, the reflected fraction of the 1 V incident differential wave. -10 dB
-  is the usual input return-loss requirement up to Nyquist for 25-28 Gb/s
-  links.
+  run, the reflected fraction of the 1 V incident differential wave. -15 dB
+  up to Nyquist at the die leaves room for the package and ESD parasitics
+  that the receiver's pin-level return-loss budget must also cover, and a
+  SiGe input with its small device capacitance reaches it without a T-coil.
 - **Input coupling.** The signal path must be AC-coupled; the termination may
   be DC- or AC-coupled to `vocm`. DC transfer: stepping the input sources' DC
   levels by +50 mV and -50 mV must change `v(voutp)-v(voutn)` by at most 1 mV
@@ -116,8 +120,9 @@ applies at every graded point and code.
   are set to zero (their 50 ohm resistances stay) and 1 A AC test currents are
   driven differentially into `voutp` and `voutn`.
   `R(f) = G(f) + 20 log10(50) - 20 log10(abs(v(vinp)-v(vinn)))`. Any network of
-  R, L, C, K and linear switches has `R(f) = 0 dB` by reciprocity, so 10 dB
-  means the signal must reach the output through a unidirectional active path.
+  R, L, C, K and linear switches has `R(f) = 0 dB` by reciprocity, so 15 dB
+  means the signal must reach the output through a unidirectional active path
+  that also keeps output disturbances off the channel.
   A passive equalizer followed by an active buffer is acceptable.
 - **Disturbances.** Inputs are held at the `vocm` source through their 50 ohm
   with no signal, and both 200 fF loads return to a node that is 0 V at the
