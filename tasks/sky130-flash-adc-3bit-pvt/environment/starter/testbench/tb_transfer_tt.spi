@@ -61,11 +61,11 @@ meas tran power_vrefp avg p_vrefp from=50n to=530n
 meas tran power_vrefn avg p_vrefn from=50n to=530n
 meas tran power_clk avg p_clk from=50n to=530n
 meas tran power_vin avg p_vin from=50n to=530n
-* conversion k: rising clk edge at 10n+k*20n; code read 19 ns later; levels held from 9.5 ns to 19 ns
+* conversion k: rising clk edge at 10n+k*20n; code read 19 ns later; levels held from 3 ns to 19 ns
 let k = 2
 while k < 26
   let t_read = 10n+k*20n+19n
-  let t_hold = 10n+k*20n+9.5n
+  let t_hold = 10n+k*20n+3n
   set kk = $&k
   meas tran s{$kk}_b2 find v(b2) at=$&t_read
   meas tran s{$kk}_b1 find v(b1) at=$&t_read

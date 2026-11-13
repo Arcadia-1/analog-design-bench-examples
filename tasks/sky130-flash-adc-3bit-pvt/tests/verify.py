@@ -166,7 +166,7 @@ def score(rows: list[dict]) -> list[tuple[str, bool, str]]:
         ("thresholds_0p3lsb", not edge_err,
          f"{len(edge_err)} wrong: " + "; ".join(edge_err[:4]) if edge_err else "every input 0.3 LSB from a threshold converts correctly"),
         ("output_timing", not level_err,
-         f"{len(level_err)} violations: " + "; ".join(level_err[:4]) if level_err else "every output valid from 9.5 ns to 19 ns after every edge"),
+         f"{len(level_err)} violations: " + "; ".join(level_err[:4]) if level_err else "every output valid from 3 ns to 19 ns after every edge"),
         ("sndr_22db", bool(sndr) and sndr["sndr_db"] >= SNDR_MIN_DB, worst(sndr, "sndr_db", "dB") + f" (>= {SNDR_MIN_DB:g})"),
         ("sfdr_24p5db", bool(sfdr) and sfdr["sfdr_db"] >= SFDR_MIN_DB, worst(sfdr, "sfdr_db", "dB") + f" (>= {SFDR_MIN_DB:g})"),
         ("power_1mw", bool(power) and power["power_w"] <= POWER_MAX_W, power_msg),

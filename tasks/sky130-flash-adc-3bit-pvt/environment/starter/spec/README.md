@@ -57,7 +57,7 @@ is the fraction that pass.
 |---|---|
 | `code_centers` | Every code-center input of the transfer bench converts to its code |
 | `thresholds_0p3lsb` | Every input 0.3 LSB below or above a threshold in the transfer bench converts to the code on its side, so every threshold is within 0.3 LSB of ideal |
-| `output_timing` | In every scored conversion of both benches, each output is at a valid level from 9.5 ns to 19 ns after the clock edge |
+| `output_timing` | In every scored conversion of both benches, each output is at a valid level from 3 ns to 19 ns after the clock edge |
 | `sndr_22db` | SNDR of the coherent sine record at least 22 dB |
 | `sfdr_24p5db` | SFDR of the same record at least 24.5 dB |
 | `power_1mw` | Average power into the circuit through all its pins at most 1 mW, in every run of both benches |
@@ -75,8 +75,8 @@ Measurement definitions:
   of what is measured.
 - **Output timing.** A valid level is at most 0.2·`vdd` (logic 0) or at least
   0.8·`vdd` (logic 1). Each output must stay on the side it is read at, from
-  9.5 ns to 19 ns after the start of the clock edge, so the code settles
-  within 9.5 ns and holds through the read.
+  3 ns to 19 ns after the start of the clock edge, so the code settles
+  within 3 ns and holds through the read.
 - **Sine record.** `vin` = 1.0 V + 0.37 V·sin(2π·3.125 MHz·t + φ), coherent
   with the clock (bin 1 of 16). After two warm-up conversions, 16 codes are
   read. φ is chosen so every ideal sample lies at least 0.15 LSB from a

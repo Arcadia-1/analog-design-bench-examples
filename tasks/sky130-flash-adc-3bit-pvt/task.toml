@@ -3,7 +3,7 @@ artifacts = ["/app/circuit.spi"]
 
 [task]
 name = "analog-arena/sky130-flash-adc-3bit-pvt"
-description = "Design a Sky130 3-bit 50 MS/s flash ADC whose thresholds stay within 0.3 LSB, with outputs settled 9.5 ns after the clock edge, at least 22 dB SNDR and 24.5 dB SFDR and at most 1 mW from all pins, across PVT."
+description = "Design a Sky130 3-bit 50 MS/s flash ADC whose thresholds stay within 0.3 LSB, with outputs settled 3 ns after the clock edge, at least 22 dB SNDR and 24.5 dB SFDR and at most 1 mW from all pins, across PVT."
 authors = [{ name = "Shixuan Wang" }]
 
 [metadata]

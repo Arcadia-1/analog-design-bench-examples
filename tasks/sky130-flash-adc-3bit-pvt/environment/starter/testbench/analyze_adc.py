@@ -42,9 +42,9 @@ def main() -> int:
             if read > 0.5 * vdd:
                 code += weight
                 if low < HIGH_MIN * vdd:
-                    bad.append(f"conversion {k} b{bit} fell to {low:.3f} V between 9.5 ns and 19 ns")
+                    bad.append(f"conversion {k} b{bit} fell to {low:.3f} V between 3 ns and 19 ns")
             elif high > LOW_MAX * vdd:
-                bad.append(f"conversion {k} b{bit} rose to {high:.3f} V between 9.5 ns and 19 ns")
+                bad.append(f"conversion {k} b{bit} rose to {high:.3f} V between 3 ns and 19 ns")
         codes.append(code)
     print("codes:", " ".join(map(str, codes)))
     print("output_timing:", "ok" if not bad else f"{len(bad)} violations: " + "; ".join(bad[:6]))

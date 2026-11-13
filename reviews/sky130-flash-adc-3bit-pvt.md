@@ -5,7 +5,7 @@ Task: sky130-flash-adc-3bit-pvt (3-bit 50 MS/s flash ADC, single-ended input, 0.
 Reviewer: task maintainers, 2026-11-13
 Evidence: instruction.md, spec/README.md, spec/signoff-rules.md, task.toml, both public and both
   hidden benches, testbench/analyze_adc.py, verify.py, test.sh, both Dockerfiles,
-  environment/starter/signoff/, the reference, 8 mutants, 2 alternatives.
+  environment/starter/signoff/, the reference, 9 mutants, 2 alternatives.
   tools/check_task.sh on eda-f (podman): both images build; the agent image runs as `agent`
   with starter, spec, checker, guide and ngspice; signoff copies identical to tests/; reference 1,
   starter 0, every mutant below 1, every alternative 1 (table below).
@@ -37,7 +37,7 @@ Novelty: the repository's only data-converter example; a
 | 6 | P1 | Task author | The public transition bench and the hidden one used the same kind of sequence (code centers only) and the public sine was the hidden one at another phase. | Fixed: the hidden transfer bench reaches every 0.3 LSB input from a code on the other side of that threshold, with full-scale jumps and the 3/4 transition both ways; the public one is ascending with each threshold's pair back to back. The public sine uses 0.36 V and another phase. The spec states both differences. |
 | 7 | P2 | Task author | `test.sh` ran `signoff_ngspice.py` as a second program after the verifier. | Fixed: `test.sh` runs `check_circuit.py` and then `verify.py` once; rule violations are scored inside the verifier. |
 | 8 | P2 | Task author | Old packaging: long instruction with the rules inline, `task.toml` with release, revision and checker keys and no agent user. | Fixed: short instruction, contract in `spec/README.md`, rules trimmed in `spec/signoff-rules.md` (ideal R and C syntax, transient ratings and stored energy apply here; DC-sweep exemption and inductors removed), `task.toml` in the standard shape. Limits match in instruction, spec, `task.toml` and `verify.py`. |
-| 9 | P2 | Task author | The output-timing limit (outputs valid from 9.5 ns to 19 ns after the edge) is loose against the reference: its latest 0.5·vdd crossing is 1.62 ns at `ss`/1.62 V/-40 C. | Kept: it is a system contract (data valid for the second half of the period), and the check exists to fail designs whose outputs are still moving or invalid at the read. |
+| 9 | P2 | Task author | The output-timing limit (outputs valid from 9.5 ns after the edge) was loose against the reference, whose latest 0.5·vdd crossing is 1.62 ns at `ss`/1.62 V/-40 C, and no mutant showed the check failing. | Fixed: outputs must be valid from 3 ns to 19 ns after the edge. Both alternatives pass; the new `slow-outputs` mutant (outputs settling about 6 ns after the edge) fails only `output_timing`. |
 | 10 | P2 | Task collector | The shared stored-energy message leaves the point label empty (`bench tb_transfer.spi at , window ...`): `signoff_ngspice.run` passes `label: ""`. | Open: cosmetic, outside this task. |
 
 Reference worst cases (limit in brackets):
@@ -46,7 +46,7 @@ Reference worst cases (limit in brackets):
 |---|---|---|
 | `code_centers` | 0 wrong of 15 centers per run | all 7 transfer points |
 | `thresholds_0p3lsb` | 0 wrong of 14 per run (also 0 wrong at 0.15 LSB, diagnostic) | all 7 transfer points |
-| `output_timing` | no level violation; latest crossing 1.62 ns (valid from 9.5 ns) | `ss`/1.62 V/-40 C |
+| `output_timing` | no level violation; latest crossing 1.62 ns (valid from 3 ns) | `ss`/1.62 V/-40 C |
 | `sndr_22db` | 22.89 dB (>= 22), equal to the ideal quantizer | all 5 sine points |
 | `sfdr_24p5db` | 25.64 dB (>= 24.5), equal to the ideal quantizer | all 5 sine points |
 | `power_1mw` | 0.633 mW (<= 1): vdd 0.474, vrefp 0.278, vrefn -0.120, clk 0.000, vin 0.000 | transfer `ff`/1.98 V/125 C |
@@ -80,6 +80,7 @@ ok     mutant-gray-code-encoder           reward=0.0      (want < 1)   24s
 ok     mutant-input-pin-termination       reward=0.833333333333 (want < 1)   32s
 ok     mutant-low-ohm-ladder              reward=0.833333333333 (want < 1)   34s
 ok     mutant-reservoir-hidden-power      reward=0        (want < 1)   33s
+ok     mutant-slow-outputs                reward=0.833333333333 (want < 1)   32s
 ok     mutant-tap3-low-0p24lsb            reward=0.833333333333 (want < 1)   32s
 ok     alt-double-tail-one-hot-encoder    reward=1.0      (want == 1)   38s
 ok     alt-track-and-hold-front-end       reward=1.0      (want == 1)   39s
@@ -94,15 +95,11 @@ ok     alt-track-and-hold-front-end       reward=1.0      (want == 1)   39s
 | `comparator-inputs-swapped` | 0: nominal gate, 31 wrong codes |
 | `low-ohm-ladder` (8 x 75 ohm) | 0.83: power 1.473 mW, everything else passes |
 | `dummy-clock-load`, `reservoir-hidden-power`, `clock-pin-termination`, `input-pin-termination` | see the metering proof |
+| `slow-outputs` (200 kohm in series with each output) | 0.83: outputs valid only about 6 ns after the edge, fails `output_timing`; every code still reads correctly at 19 ns, SNDR, SFDR and power pass |
 | `tap3-low-0p24lsb` (threshold 3 trimmed 24 mV low) | 0.83: SNDR 20.49 dB at every sine point; SFDR 25.52 dB, transfer and power pass |
 | Alternative `double-tail-one-hot-encoder` (double-tail comparators, NAND latches, one-hot encoder, 8 x 400 ohm ladder) | 1 (worst power 0.529 mW) |
 | Alternative `track-and-hold-front-end` (LVT transmission-gate track-and-hold on 12 pF ahead of the comparators) | 1 (worst power 0.732 mW) |
 
-No mutant fails only SFDR, and none can: of the 26 possible single-code errors on this record,
-none takes SFDR under 24.5 dB while SNDR stays at 22 dB or more; 4 fail SNDR only (like
-`tap3-low-0p24lsb`), the rest fail both except 2. Those 2 (a sample next to threshold 4 read one
-code off) cost 0.47 dB SNDR and pass the sine checks; such a flip needs threshold 4 off by more
-than 0.2 LSB, and the contract allows up to 0.3 LSB (the transfer bench fails anything beyond).
 
 ## Conclusion
 
