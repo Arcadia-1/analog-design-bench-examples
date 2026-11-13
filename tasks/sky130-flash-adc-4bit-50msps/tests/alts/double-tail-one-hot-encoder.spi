@@ -1,0 +1,208 @@
+* Alternative structure: double-tail comparators, NOR SR latches and a one-hot
+* ROM-style encoder, on the same kind of sampled ladder front end.
+
+.subckt dt_inv a y vdd vss
+XP y a vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
+XN y a vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=1
+.ends dt_inv
+
+.subckt dt_nand2 a b y vdd vss
+XP1 y a vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=2 nf=1
+XP2 y b vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=2 nf=1
+XN1 y a nx vss sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=1
+XN2 nx b vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=2 nf=1
+.ends dt_nand2
+
+.subckt dt_nand4 a b c d y vdd vss
+XP1 y a vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=2 nf=1
+XP2 y b vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=2 nf=1
+XP3 y c vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=2 nf=1
+XP4 y d vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=2 nf=1
+XN1 y a n1 vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
+XN2 n1 b n2 vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
+XN3 n2 c n3 vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
+XN4 n3 d vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
+.ends dt_nand4
+
+.subckt dt_nor2 a b y vdd vss
+XP1 m a vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
+XP2 y b m vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
+XN1 y a vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1
+XN2 y b vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=1 nf=1
+.ends dt_nor2
+
+* Sample switch: transmission gate, on while en = 1.
+.subckt dt_tg a b en enb vdd vss
+XN a en b vss sky130_fd_pr__nfet_01v8 l=0.15 w=128 nf=32
+XP a enb b vdd sky130_fd_pr__pfet_01v8 l=0.15 w=256 nf=64
+.ends dt_tg
+
+* Double-tail comparator. clk = 0: the input stage precharges di_p/di_n to vdd and
+* their NMOS clamps hold both outputs low. clk = 1: the input stage discharges
+* di_p/di_n at rates set by inp/inn; the side that falls first releases its output,
+* and the clkb-tailed latch drives it high (outp high when inp > inn).
+.subckt dt_comp clk clkb inp inn outp outn vdd vss
+XT1 t1 clk vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=16 nf=4
+XIP di_p inp t1 vss sky130_fd_pr__nfet_01v8 l=0.18 w=16 nf=4
+XIN di_n inn t1 vss sky130_fd_pr__nfet_01v8 l=0.18 w=16 nf=4
+XRP di_p clk vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
+XRN di_n clk vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=4 nf=1
+XT2 t2 clkb vdd vdd sky130_fd_pr__pfet_01v8 l=0.15 w=16 nf=4
+XLP1 outp outn t2 vdd sky130_fd_pr__pfet_01v8 l=0.15 w=8 nf=2
+XLP2 outn outp t2 vdd sky130_fd_pr__pfet_01v8 l=0.15 w=8 nf=2
+XLN1 outp outn vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
+XLN2 outn outp vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
+XCP outp di_p vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
+XCN outn di_n vss vss sky130_fd_pr__nfet_01v8 l=0.15 w=4 nf=1
+.ends dt_comp
+
+* NOR SR latch: s = 1 sets q, r = 1 resets it, s = r = 0 holds.
+.subckt dt_sr s r q qb vdd vss
+XG1 r qb q vdd vss dt_nor2
+XG2 s q qb vdd vss dt_nor2
+.ends dt_sr
+
+.subckt flash_adc_4bit clk dout3 dout2 dout1 dout0 vss vdd vinn vinp vrefn vrefp
+RL1 s1 vrefn 100
+RL2 s2 s1 100
+RL3 s3 s2 100
+RL4 s4 s3 100
+RL5 s5 s4 100
+RL6 s6 s5 100
+RL7 s7 s6 100
+RL8 s8 s7 100
+RL9 s9 s8 100
+RL10 s10 s9 100
+RL11 s11 s10 100
+RL12 s12 s11 100
+RL13 s13 s12 100
+RL14 s14 s13 100
+RL15 s15 s14 100
+RL16 vrefp s15 100
+XCLK1 clk clks vdd vss dt_inv
+XCLK2 clk clkb vdd vss dt_inv
+XTGP vinp vhp clks clk vdd vss dt_tg
+XTGN vinn vhn clks clk vdd vss dt_tg
+CHP vhp s8 5p
+CHN vhn s8 5p
+R1PA vhp vp1 200k
+R1PB s15 vp1 200k
+R1NA vhn vn1 200k
+R1NB s1 vn1 200k
+XC1 clk clkb vp1 vn1 op1 on1 vdd vss dt_comp
+XS1 op1 on1 q1 qb1 vdd vss dt_sr
+R2PA vhp vp2 200k
+R2PB s14 vp2 200k
+R2NA vhn vn2 200k
+R2NB s2 vn2 200k
+XC2 clk clkb vp2 vn2 op2 on2 vdd vss dt_comp
+XS2 op2 on2 q2 qb2 vdd vss dt_sr
+R3PA vhp vp3 200k
+R3PB s13 vp3 200k
+R3NA vhn vn3 200k
+R3NB s3 vn3 200k
+XC3 clk clkb vp3 vn3 op3 on3 vdd vss dt_comp
+XS3 op3 on3 q3 qb3 vdd vss dt_sr
+R4PA vhp vp4 200k
+R4PB s12 vp4 200k
+R4NA vhn vn4 200k
+R4NB s4 vn4 200k
+XC4 clk clkb vp4 vn4 op4 on4 vdd vss dt_comp
+XS4 op4 on4 q4 qb4 vdd vss dt_sr
+R5PA vhp vp5 200k
+R5PB s11 vp5 200k
+R5NA vhn vn5 200k
+R5NB s5 vn5 200k
+XC5 clk clkb vp5 vn5 op5 on5 vdd vss dt_comp
+XS5 op5 on5 q5 qb5 vdd vss dt_sr
+R6PA vhp vp6 200k
+R6PB s10 vp6 200k
+R6NA vhn vn6 200k
+R6NB s6 vn6 200k
+XC6 clk clkb vp6 vn6 op6 on6 vdd vss dt_comp
+XS6 op6 on6 q6 qb6 vdd vss dt_sr
+R7PA vhp vp7 200k
+R7PB s9 vp7 200k
+R7NA vhn vn7 200k
+R7NB s7 vn7 200k
+XC7 clk clkb vp7 vn7 op7 on7 vdd vss dt_comp
+XS7 op7 on7 q7 qb7 vdd vss dt_sr
+R8PA vhp vp8 200k
+R8PB s8 vp8 200k
+R8NA vhn vn8 200k
+R8NB s8 vn8 200k
+XC8 clk clkb vp8 vn8 op8 on8 vdd vss dt_comp
+XS8 op8 on8 q8 qb8 vdd vss dt_sr
+R9PA vhp vp9 200k
+R9PB s7 vp9 200k
+R9NA vhn vn9 200k
+R9NB s9 vn9 200k
+XC9 clk clkb vp9 vn9 op9 on9 vdd vss dt_comp
+XS9 op9 on9 q9 qb9 vdd vss dt_sr
+R10PA vhp vp10 200k
+R10PB s6 vp10 200k
+R10NA vhn vn10 200k
+R10NB s10 vn10 200k
+XC10 clk clkb vp10 vn10 op10 on10 vdd vss dt_comp
+XS10 op10 on10 q10 qb10 vdd vss dt_sr
+R11PA vhp vp11 200k
+R11PB s5 vp11 200k
+R11NA vhn vn11 200k
+R11NB s11 vn11 200k
+XC11 clk clkb vp11 vn11 op11 on11 vdd vss dt_comp
+XS11 op11 on11 q11 qb11 vdd vss dt_sr
+R12PA vhp vp12 200k
+R12PB s4 vp12 200k
+R12NA vhn vn12 200k
+R12NB s12 vn12 200k
+XC12 clk clkb vp12 vn12 op12 on12 vdd vss dt_comp
+XS12 op12 on12 q12 qb12 vdd vss dt_sr
+R13PA vhp vp13 200k
+R13PB s3 vp13 200k
+R13NA vhn vn13 200k
+R13NB s13 vn13 200k
+XC13 clk clkb vp13 vn13 op13 on13 vdd vss dt_comp
+XS13 op13 on13 q13 qb13 vdd vss dt_sr
+R14PA vhp vp14 200k
+R14PB s2 vp14 200k
+R14NA vhn vn14 200k
+R14NB s14 vn14 200k
+XC14 clk clkb vp14 vn14 op14 on14 vdd vss dt_comp
+XS14 op14 on14 q14 qb14 vdd vss dt_sr
+R15PA vhp vp15 200k
+R15PB s1 vp15 200k
+R15NA vhn vn15 200k
+R15NB s15 vn15 200k
+XC15 clk clkb vp15 vn15 op15 on15 vdd vss dt_comp
+XS15 op15 on15 q15 qb15 vdd vss dt_sr
+XH1 q1 qb2 hb1 vdd vss dt_nand2
+XH2 q2 qb3 hb2 vdd vss dt_nand2
+XH3 q3 qb4 hb3 vdd vss dt_nand2
+XH4 q4 qb5 hb4 vdd vss dt_nand2
+XH5 q5 qb6 hb5 vdd vss dt_nand2
+XH6 q6 qb7 hb6 vdd vss dt_nand2
+XH7 q7 qb8 hb7 vdd vss dt_nand2
+XH8 q8 qb9 hb8 vdd vss dt_nand2
+XH9 q9 qb10 hb9 vdd vss dt_nand2
+XH10 q10 qb11 hb10 vdd vss dt_nand2
+XH11 q11 qb12 hb11 vdd vss dt_nand2
+XH12 q12 qb13 hb12 vdd vss dt_nand2
+XH13 q13 qb14 hb13 vdd vss dt_nand2
+XH14 q14 qb15 hb14 vdd vss dt_nand2
+XB0A hb1 hb3 hb5 hb7 g0a vdd vss dt_nand4
+XB0B hb9 hb11 hb13 qb15 g0b vdd vss dt_nand4
+XB0C g0a g0b n0 vdd vss dt_nor2
+XB0D n0 dout0 vdd vss dt_inv
+XB1A hb2 hb3 hb6 hb7 g1a vdd vss dt_nand4
+XB1B hb10 hb11 hb14 qb15 g1b vdd vss dt_nand4
+XB1C g1a g1b n1 vdd vss dt_nor2
+XB1D n1 dout1 vdd vss dt_inv
+XB2A hb4 hb5 hb6 hb7 g2a vdd vss dt_nand4
+XB2B hb12 hb13 hb14 qb15 g2b vdd vss dt_nand4
+XB2C g2a g2b n2 vdd vss dt_nor2
+XB2D n2 dout2 vdd vss dt_inv
+XB3A hb8 hb9 hb10 hb11 g3a vdd vss dt_nand4
+XB3B hb12 hb13 hb14 qb15 g3b vdd vss dt_nand4
+XB3C g3a g3b n3 vdd vss dt_nor2
+XB3D n3 dout3 vdd vss dt_inv
+.ends flash_adc_4bit

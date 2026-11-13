@@ -8,7 +8,7 @@ electrical contract here, the simulation rules in
 ## Interface
 
 `.subckt flash_adc_4bit clk dout3 dout2 dout1 dout0 vss vdd vinn vinp vrefn vrefp`,
-with exactly that pin order. `vdd` is the 1.8 V supply, `vss` ground, `vrefp`
+with exactly that pin order. `vdd` is the supply, `vss` ground, `vrefp`
 (1.8 V) and `vrefn` (0 V) the conversion references, `vinp`/`vinn` the
 differential input, `clk` the only clock, `dout3` (MSB) to `dout0` the output
 code. Each output drives 10 fF.
@@ -20,9 +20,11 @@ the external electrical behavior below.
 
 ## Operating conditions
 
-- `tt`, 1.8 V, 27 C. Process corners, mismatch and noise are not graded.
-- 50 MS/s: `clk` is a 1.8 V, 50 % square wave with 20 ps edges, driven
-  through 50 ohm. `clk = 0` is acquisition; the rising edge ends sampling and
+- Supply `vdd` from 1.71 V to 1.89 V (1.8 V ± 5 %); temperature from -40 C to
+  125 C; Sky130 corners `tt`, `ss`, `ff`, `sf` and `fs`. The references stay
+  at 1.8 V and 0 V. Mismatch and noise are not graded.
+- 50 MS/s: `clk` is a rail-to-rail (0 to `vdd`), 50 % square wave with 20 ps
+  edges, driven through 50 ohm. `clk = 0` is acquisition; the rising edge ends sampling and
   `clk = 1` is conversion. Generate any complementary clock inside the
   circuit.
 - The inputs are ideal voltage sources around a 0.9 V common mode, spanning
@@ -30,9 +32,18 @@ the external electrical behavior below.
 - The output code is read 9 ns after each rising edge, with a 0.9 V
   threshold.
 
+## Coverage
+
+Grading runs every bench below at representative points of the supply and
+temperature ranges at all five process corners, including the slow, cold,
+low-supply and fast, hot, high-supply extremes. This is representative
+coverage, not the complete Cartesian product. The nominal `tt`/1.8 V/27 C point
+runs first; if its transfer check fails, nothing else runs.
+
 ## Scored checks
 
-Each check passes or fails; the reward is 1 only when all pass.
+Each check passes or fails, and must pass at every graded point; the reward is
+1 only when all pass.
 
 | Check | Requirement |
 |---|---|
@@ -88,7 +99,7 @@ ngspice -b -r linearity.raw tb_linearity_tt.spi && python3 analyze_flash_adc.py 
 ngspice -b -r dynamic.raw tb_dynamic_tt.spi && python3 analyze_flash_adc.py dynamic dynamic.raw
 ```
 
-They use the same circuit, conditions and metric definitions as grading, with
-shorter, different stimuli: an eight-code subset, a 64-sample ramp, and a
+They run at `tt`/1.8 V/27 C with the same circuit and metric definitions as
+grading, and shorter, different stimuli: an eight-code subset, a 64-sample ramp, and a
 16-point sine at a different frequency. Grading uses its own sequences. The
 public benches do not apply the signoff rules.

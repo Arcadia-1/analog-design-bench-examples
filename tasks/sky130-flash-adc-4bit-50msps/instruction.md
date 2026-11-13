@@ -2,9 +2,10 @@
 
 Design a transistor-level, fully differential 4-bit flash ADC in Sky130: a
 comparator bank on a reference ladder and a thermometer-to-binary encoder,
-clocked by a single 50 MHz clock from a 1.8 V supply. It must convert every
-code without error or missing codes, keep INL and DNL within 0.5 LSB, reach
-22 dB SNDR and 26 dB SFDR, and take at most 5 mW from all external sources.
+clocked by a single 50 MHz clock from a 1.71–1.89 V supply. Across process,
+supply and -40 C to 125 C it must convert every code without error or
+missing codes, keep INL and DNL within 0.5 LSB, reach 22 dB SNDR and 26 dB
+SFDR, and take at most 5 mW from all external sources.
 
 - **Deliverable:** `/app/circuit.spi`, implementing
   `.subckt flash_adc_4bit clk dout3 dout2 dout1 dout0 vss vdd vinn vinp vrefn vrefp`.
