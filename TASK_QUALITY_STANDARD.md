@@ -9,6 +9,7 @@ Every item must hold. The sections below explain each one.
 - [ ] The reference scores 1 and the untouched starter 0 (`harbor run --agent oracle` and `--agent nop`).
 - [ ] `tests/mutants/` holds at least 5 reference copies with one defect each; every one scores below 1, and every scored check is failed by at least one mutant.
 - [ ] `tests/alts/` holds at least one correct design, preferably a different topology rather than only a different sizing; every one scores 1.
+- [ ] The task grades at least 5 distinct checks, including at least two that pull against each other, and the plainest textbook design does not score 1.
 - [ ] Limits are natural engineering targets, not the reference's worst case rounded outward, and the reference passes each with margin.
 - [ ] Claimed PVT or Monte Carlo coverage is the complete declared product; a representative subset is stated as such in the spec.
 - [ ] Hidden benches use conditions or stimuli the public benches do not show.
@@ -52,6 +53,13 @@ tasks.
 - A physically better result must not fail because it lies beyond a sweep boundary or because of incorrect interpolation, censoring, polarity, or sign handling.
 - This applies to amplifiers graded open loop (op amps, OTAs and similar high-gain stages); circuits that set their own operating point in closed loop, such as LDOs and references, are not affected. An open-loop gain, CMRR or PSRR measurement of such an amplifier must set its DC operating point with DC feedback (a very large inductor from the output to the inverting input with the AC drive through a large capacitor, or a low-pass DC servo), never by biasing every input from a source. Otherwise a systematic or mismatch offset multiplied by the open-loop gain pushes the output toward a rail, and a higher-gain design reads worse.
 - Measure settling and recovery against a target the bench fixes in advance: the commanded value (a buffer stepped to 1.0 V settles toward 1.0 V), or another external reference such as the output of an undisturbed copy of the same circuit. Never use the value the design's output ends up at, such as the average of its last few nanoseconds, as the target: a design that settles quickly to a wrong value would pass, and one still drifting would be measured against its own drift.
+
+## Minimum substance
+
+- Grade at least 5 distinct checks. The same metric at several operating points counts once: gain at `tt`, `ss` and `ff` is one check.
+- At least two graded metrics must pull against each other, so the design needs a trade-off (gain and bandwidth, noise and power, speed and accuracy).
+- The plainest design (a textbook topology with rule-of-thumb sizing) must not score 1. The author submits one and records its score in the review.
+- Difficulty comes from the specifications and the coverage, not from circuit size: there is no minimum device count, and a small circuit with tight limits across PVT is a good task.
 
 ## Coverage and test cost
 
