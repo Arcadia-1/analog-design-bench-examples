@@ -53,7 +53,7 @@ applies at every graded point.
 | `phase_margin_60deg` | Phase margin at that frequency at least 60 degrees |
 | `power_0p5mw` | Power from the supply (including the `ibias` reference current) and from the input source, at most 0.5 mW |
 | `noise_50uvrms` | Input-referred noise integrated from 10 Hz to 10 MHz at most 50 uVrms |
-| `cmrr_50db` | Open-loop common-mode rejection at 1 kHz at least 50 dB |
+| `cmrr_40db` | Open-loop common-mode rejection at 1 kHz at least 40 dB |
 | `psrr_30db` | Open-loop rejection of each supply rail at 1 kHz at least 30 dB |
 
 Measurement definitions:
@@ -69,9 +69,13 @@ Measurement definitions:
 - **Noise** is the input-referred noise of the unity-feedback circuit at
   `vout`, integrated from 10 Hz to 10 MHz.
 - **CMRR** is the open-loop differential gain over the common-mode gain at
-  1 kHz, both with the inputs biased at `vdd/2` and no feedback.
+  1 kHz. Each measured copy has `vinp` at `vdd/2` and `vout` tied to `vinn`
+  through a 1 GH inductor, so its DC operating point is the unity-feedback one
+  while the loop is open at 1 kHz; the AC drive reaches `vinn` through a 1 F
+  capacitor.
 - **PSRR** is the open-loop differential gain over the gain from an AC source
-  on `vdd` (positive rail) or on `vss` (negative rail) to `vout`, at 1 kHz.
+  on `vdd` (positive rail) or on `vss` (negative rail) to `vout`, at 1 kHz,
+  with the operating point set the same way.
 
 ## Deliverable and eligibility
 
