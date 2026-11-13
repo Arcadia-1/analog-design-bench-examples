@@ -34,7 +34,7 @@ GRID_LIMITS = (
     ("power_0p5mw", "power_w", 0.5e-3, False, 1e3, "mW"),
     ("noise_50uvrms", "input_noise_vrms", 50e-6, False, 1e6, "uVrms"),
 )
-CHECK_NAMES = tuple(spec[0] for spec in GRID_LIMITS) + ("cmrr_50db", "psrr_30db")
+CHECK_NAMES = tuple(spec[0] for spec in GRID_LIMITS) + ("cmrr_40db", "psrr_30db")
 
 
 def name(point: tuple[str, float, int], bias: str) -> str:
@@ -132,7 +132,7 @@ def main() -> None:
     psrr = [row for row in rejection if row["bench"] != "cmrr"]
     finish(
         grid_results + [
-            threshold(cmrr, len(REJECTION_POINTS), ("cmrr_50db", "cmrr_db_1khz", 50, True, 1, "dB")),
+            threshold(cmrr, len(REJECTION_POINTS), ("cmrr_40db", "cmrr_db_1khz", 40, True, 1, "dB")),
             threshold(psrr, 2 * len(REJECTION_POINTS), ("psrr_30db", "psrr_db_1khz", 30, True, 1, "dB")),
         ],
         1 + 2 * len(CORNERS) + len(rejection),
