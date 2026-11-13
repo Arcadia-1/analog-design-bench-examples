@@ -1,0 +1,24 @@
+Bandgap startup bench (hidden): supply ramp or enable step, against the operating point
+include "sg13g2_vacask_common.lib"
+include "cornerMOShv.lib" section=__MOS__
+include "cornerMOSlv.lib" section=__MOS__
+include "cornerHBT.lib" section=__HBT__
+include "cornerRES.lib" section=__RES__
+include "cornerCAP.lib" section=__CAP__
+include "circuit.sim"
+model vsource vsource
+model isource isource
+
+// device under test; the sources are DC for the target operating point, then switched
+vdd (vdd 0) vsource dc=__VDD__
+vensrc (ensrc 0) vsource dc=__VDD__
+ren (ensrc en) sg13g2_default_mod_r r=10k
+xdut (vdd 0 en vref) bandgap
+cl (vref 0) sg13g2_default_mod_c c=__CL__
+
+control
+  options temp=__TEMP__
+  analysis target op
+__ALTER__
+  analysis tr tran stop=__STOP__ step=10n maxstep=50n icmode="op"
+endc

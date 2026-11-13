@@ -1,0 +1,57 @@
+* Hidden full-rate transfer bench: code centers and inputs 0.3 LSB either side of every threshold.
+* Each threshold is approached from a distant code; the order differs from the public bench.
+* expected codes (conversions 0..32, first 2 are warm-up): 0 7 3 4 3 0 4 7 0 2 1 6 6 1 7 5 2 0 3 7 5 2 6 4 1 7 2 1 4 7 0 5 3
+.include "/opt/gf180/pdk/gf180mcuD/libs.tech/xyce/design.xyce"
+.lib "/opt/gf180/pdk/gf180mcuD/libs.tech/xyce/sm141064.xyce" typical
+.include "/app/circuit.spi"
+.options device temp=27
+VSS vss 0 0
+VSUP vdd vss 3.3
+VRP vrefp_s vss 2.6
+RRP vrefp_s vrefp 10
+VRN vrefn_s vss 1.0
+RRN vrefn_s vrefn 10
+VCK clk_s vss PULSE(0 3.3 10n 0.3n 0.3n 9.4n 20n)
+RCK clk_s clk 50
+VSIG vin vss PWL(0 1.10
++ 20n 1.10 20.2n 2.50
++ 40n 2.50 40.2n 1.70
++ 60n 1.70 60.2n 1.90
++ 80n 1.90 80.2n 1.74
++ 100n 1.74 100.2n 1.10
++ 120n 1.10 120.2n 1.86
++ 140n 1.86 140.2n 2.50
++ 160n 2.50 160.2n 1.14
++ 180n 1.14 180.2n 1.50
++ 200n 1.50 200.2n 1.26
++ 220n 1.26 220.2n 2.30
++ 240n 2.30 240.2n 2.34
++ 260n 2.34 260.2n 1.30
++ 280n 1.30 280.2n 2.46
++ 300n 2.46 300.2n 2.10
++ 320n 2.10 320.2n 1.54
++ 340n 1.54 340.2n 1.10
++ 360n 1.10 360.2n 1.66
++ 380n 1.66 380.2n 2.50
++ 400n 2.50 400.2n 2.14
++ 420n 2.14 420.2n 1.50
++ 440n 1.50 440.2n 2.26
++ 460n 2.26 460.2n 1.90
++ 480n 1.90 480.2n 1.34
++ 500n 1.34 500.2n 2.50
++ 520n 2.50 520.2n 1.46
++ 540n 1.46 540.2n 1.30
++ 560n 1.30 560.2n 1.94
++ 580n 1.94 580.2n 2.50
++ 600n 2.50 600.2n 1.10
++ 620n 1.10 620.2n 2.06
++ 640n 2.06 640.2n 1.70)
+XADC vss vdd vrefn vrefp clk vin b2 b1 b0 flash_adc_3bit
+CB2 b2 vss 50f
+CB1 b1 vss 50f
+CB0 b0 vss 50f
+
+.tran 50p 671n 0 0.2n
+* the grader reads Xyce's raw file (every node and source current); this line is for your own plots
+.print tran format=csv v(clk) v(vin) v(b2) v(b1) v(b0)
+.end

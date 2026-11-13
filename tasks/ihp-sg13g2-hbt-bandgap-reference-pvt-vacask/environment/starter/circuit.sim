@@ -1,0 +1,10 @@
+// Deliverable: the bandgap reference. Pin order is fixed; see /app/spec/README.md.
+// VACASK syntax (see /app/spec/netlist-guide.md): instance (nodes) master parameters.
+// Helper subcircuits may be defined in this file, outside bandgap.
+// Examples:
+//   xm1 (d g s b) sg13_hv_nmos w=2u l=1u
+//   q1 (c b e vss) npn13G2 nx=4
+//   r1 (a b vss) rppd w=0.5u l=50u
+//   c1 (a b) cap_cmim w=20u l=20u
+subckt bandgap (vdd vss en vref)
+ends

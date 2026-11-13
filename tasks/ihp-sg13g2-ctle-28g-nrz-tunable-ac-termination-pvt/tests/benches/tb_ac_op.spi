@@ -1,0 +1,103 @@
+* CTLE operating point and differential AC response at one PVT point and code.
+* vocm comes from vdd/2 through 10 ohm and each control pin from its logic level through 1 kohm; each input is a
+* 50 ohm source referenced to the vocm source (2 V differential EMF, so a matched input receives 1 V). The second
+* AC run drives 1 A differential test currents into the outputs with the input sources off, for the
+* forward/reverse ratio. verify.py replaces the .lib corner names and the .param values before each run.
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib" mos_tt
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerMOShv.lib" mos_tt
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerHBT.lib" hbt_typ
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerRES.lib" res_typ
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerCAP.lib" cap_typ
+.include "/app/circuit.spi"
+.options filetype=ascii reltol=2e-4 abstol=1e-12 vntol=1e-6
+.param supply=3.3
+.param temperature=27
+.temp {temperature}
+.param code_g0=0
+.param code_g1=0
+.param code_p0=0
+.param code_p1=0
+VSS vss 0 0
+VDD vdd vss {supply}
+IREF vdd iref 100u
+VOCM vcmsrc vss {supply/2}
+VCMSTEP vcmref vcmsrc DC 0
+RVOCM vcmref vocm 10
+VSP srcp vcmref DC 0 AC 1
+RSP srcp vinp 50
+VSN srcn vcmref DC 0 AC -1
+RSN srcn vinn 50
+VGB0 sgb0 vss {code_g0*supply}
+RGB0 sgb0 gain_b0 1k
+VGB1 sgb1 vss {code_g1*supply}
+RGB1 sgb1 gain_b1 1k
+VPB0 spb0 vss {code_p0*supply}
+RPB0 spb0 peak_b0 1k
+VPB1 spb1 vss {code_p1*supply}
+RPB1 spb1 peak_b1 1k
+XDUT vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn ctle_28g
+CLP voutp vss 200f
+CLN voutn vss 200f
+IRP 0 voutp DC 0 AC 0
+IRN voutn 0 DC 0 AC 0
+
+.control
+op
+let output_common_mode_v = 0.5*(v(voutp)+v(voutn))
+let output_diff_v = v(voutp)-v(voutn)
+let output_offset_v = abs(output_diff_v)
+let vocm_pin_v = v(vocm)
+let power_w = -v(vdd)*i(vdd)
+let other_source_power_w = abs(v(vcmsrc)*i(vocm)) + abs((v(srcp)-v(vcmref))*i(vsp)) + abs((v(srcn)-v(vcmref))*i(vsn)) + abs(v(sgb0)*i(vgb0)) + abs(v(sgb1)*i(vgb1)) + abs(v(spb0)*i(vpb0)) + abs(v(spb1)*i(vpb1))
+let voutp_v = v(voutp)
+let voutn_v = v(voutn)
+write signoff_op0.raw
+print output_common_mode_v output_diff_v output_offset_v vocm_pin_v power_w other_source_power_w voutp_v voutn_v
+
+alter vsp dc = 0.05
+alter vsn dc = -0.05
+op
+write signoff_op1.raw
+let dc_drive_diff_v = v(voutp)-v(voutn)
+print dc_drive_diff_v
+alter vsp dc = 0
+alter vsn dc = 0
+
+alter vcmstep dc = 0.01
+op
+write signoff_op2.raw
+let vocm_step_cm_v = 0.5*(v(voutp)+v(voutn))
+print vocm_step_cm_v
+alter vcmstep dc = 0
+
+ac dec 20 100 40g
+set fwdplot = $curplot
+let gain_db = 20*log10(mag(v(voutp)-v(voutn)))
+let gain_re = real(v(voutp)-v(voutn))
+let sdd11_db = 20*log10(mag(v(vinp)-v(vinn)-1))
+meas ac g_lf_db find gain_db at=1meg
+meas ac g_lf_re find gain_re at=1meg
+meas ac g_14_db find gain_db at=14g
+meas ac inband_peak_db max gain_db from=1meg to=14g
+meas ac inband_min_db min gain_db from=1meg to=14g
+meas ac hf_peak_db max gain_db from=14g
+let bw_thresh_db = g_14_db-3
+meas ac bw_hz when gain_db=$&bw_thresh_db fall=1 from=14g
+meas ac gain_at_sweep_stop find gain_db at=40g
+let gain_start_db = gain_db[0]
+print gain_start_db
+let low_thresh_db = g_lf_db-3
+meas ac low_bw_hz when gain_db=$&low_thresh_db rise=1 to=2meg
+meas ac sdd11_max_db max sdd11_db from=100meg to=14g
+
+alter vsp acmag = 0
+alter vsn acmag = 0
+alter irp acmag = 1
+alter irn acmag = 1
+ac dec 20 100 40g
+let vin_rev_db = 20*log10(mag(v(vinp)-v(vinn))+1e-30)
+let fwd_rev_db = {$fwdplot}.gain_db + 20*log10(50) - vin_rev_db
+meas ac fwd_rev_min_db min fwd_rev_db from=100meg to=14g
+echo CTLE_ANALYSES_COMPLETE
+.endc
+.end

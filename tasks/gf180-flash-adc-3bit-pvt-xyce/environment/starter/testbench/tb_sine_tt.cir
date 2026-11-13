@@ -1,0 +1,25 @@
+* Public 16-sample coherent sine: bin 1 of 16 (3.125 MHz), 0.72 V amplitude around 1.8 V, typical / 3.30 V / 27 C.
+* Grading uses another amplitude and phase. Every ideal sample lies at least 0.14 LSB from a threshold for any
+* sampling instant from the start of the clock source's rising edge to 1.5 ns after it.
+.include "/opt/gf180/pdk/gf180mcuD/libs.tech/xyce/design.xyce"
+.lib "/opt/gf180/pdk/gf180mcuD/libs.tech/xyce/sm141064.xyce" typical
+.include "/app/circuit.spi"
+.options device temp=27
+VSS vss 0 0
+VSUP vdd vss 3.3
+VRP vrefp_s vss 2.6
+RRP vrefp_s vrefp 10
+VRN vrefn_s vss 1.0
+RRN vrefn_s vrefn 10
+VCK clk_s vss PULSE(0 3.3 10n 0.3n 0.3n 9.4n 20n)
+RCK clk_s clk 50
+VSIG vin vss SIN(1.8 0.72 3.125Meg 0 0 351)
+XADC vss vdd vrefn vrefp clk vin b2 b1 b0 flash_adc_3bit
+CB2 b2 vss 50f
+CB1 b1 vss 50f
+CB0 b0 vss 50f
+
+.tran 50p 371n 0 0.2n
+* the grader reads Xyce's raw file (every node and source current); this line is for your own plots
+.print tran format=csv v(clk) v(vin) v(b2) v(b1) v(b0)
+.end

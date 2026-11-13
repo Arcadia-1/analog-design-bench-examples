@@ -1,0 +1,42 @@
+Bandgap DC bench, typical corner: vref over supply and temperature, load, disabled state
+include "sg13g2_vacask_common.lib"
+include "cornerMOShv.lib" section=mos_tt
+include "cornerMOSlv.lib" section=mos_tt
+include "cornerHBT.lib" section=hbt_typ
+include "cornerRES.lib" section=res_typ
+include "cornerCAP.lib" section=cap_typ
+include "../circuit.sim"
+model vsource vsource
+model isource isource
+
+vdd (vdd 0) vsource dc=vsup
+vensrc (ensrc 0) vsource dc=vsup*enable
+ren (ensrc en) sg13g2_default_mod_r r=10k
+iload (vref 0) isource dc=0
+xdut (vdd 0 en vref) bandgap
+cl (vref 0) sg13g2_default_mod_c c=10p
+
+control
+  var vsup=3.3 enable=1
+  // vref and supply current; the temperature coefficient and line regulation come from this sweep
+  sweep vsup variable="vsup" values=[3.0, 3.3, 3.6]
+  sweep temp option="temp" values=[-40, -20, 0, 20, 27, 40, 60, 80, 100, 125]
+    analysis dc op
+  // load regulation: 0 and 5 uA drawn from vref
+  sweep vsup variable="vsup" values=[3.3]
+  sweep temp option="temp" values=[27]
+  sweep iload instance="iload" parameter="dc" values=[0, 5u]
+    analysis load op
+  // the operating point from two different initial guesses
+  sweep vsup variable="vsup" values=[3.3]
+  sweep temp option="temp" values=[27]
+    analysis nslo op nodeset={"vref", 0, "en", vsup}
+  sweep vsup variable="vsup" values=[3.3]
+  sweep temp option="temp" values=[27]
+    analysis nshi op nodeset={"vref", vsup, "en", vsup}
+  // disabled: the enable source at 0 V
+  sweep vsup variable="vsup" values=[3.3]
+  sweep temp option="temp" values=[27]
+  sweep enable variable="enable" values=[0]
+    analysis off op
+endc

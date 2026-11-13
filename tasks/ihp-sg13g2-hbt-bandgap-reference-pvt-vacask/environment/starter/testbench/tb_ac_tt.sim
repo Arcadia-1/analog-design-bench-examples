@@ -1,0 +1,28 @@
+Bandgap small-signal bench, typical corner: supply rejection and output noise at 10 kHz
+include "sg13g2_vacask_common.lib"
+include "cornerMOShv.lib" section=mos_tt
+include "cornerMOSlv.lib" section=mos_tt
+include "cornerHBT.lib" section=hbt_typ
+include "cornerRES.lib" section=res_typ
+include "cornerCAP.lib" section=cap_typ
+include "../circuit.sim"
+model vsource vsource
+model isource isource
+
+vdd (vdd 0) vsource dc=vsup mag=1
+vensrc (ensrc 0) vsource dc=vsup
+ren (ensrc en) sg13g2_default_mod_r r=10k
+xdut (vdd 0 en vref) bandgap
+cl (vref 0) sg13g2_default_mod_c c=10p
+
+control
+  var vsup=3.3
+  save v(vref)
+  sweep vsup variable="vsup" values=[3.3]
+  sweep temp option="temp" values=[27]
+    analysis ac ac values=[10k]
+  clear saves
+  sweep vsup variable="vsup" values=[3.3]
+  sweep temp option="temp" values=[27]
+    analysis nz noise out="vref" in="vdd" values=[10k]
+endc

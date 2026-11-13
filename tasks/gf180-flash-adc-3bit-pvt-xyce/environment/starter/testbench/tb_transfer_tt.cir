@@ -1,0 +1,51 @@
+* Public transfer bench, typical / 3.30 V / 27 C.
+* Ascending code centers, then inputs 0.3 LSB above and below each threshold, each approached from the
+* neighbouring code. Grading uses its own order, approaching every threshold from distant codes.
+* expected codes (conversions 0..25, first 2 are warm-up): 7 0 0 1 2 3 4 5 6 7 0 7 1 0 2 1 3 2 4 3 5 4 6 5 7 6
+.include "/opt/gf180/pdk/gf180mcuD/libs.tech/xyce/design.xyce"
+.lib "/opt/gf180/pdk/gf180mcuD/libs.tech/xyce/sm141064.xyce" typical
+.include "/app/circuit.spi"
+.options device temp=27
+VSS vss 0 0
+VSUP vdd vss 3.3
+VRP vrefp_s vss 2.6
+RRP vrefp_s vrefp 10
+VRN vrefn_s vss 1.0
+RRN vrefn_s vrefn 10
+VCK clk_s vss PULSE(0 3.3 10n 0.3n 0.3n 9.4n 20n)
+RCK clk_s clk 50
+VSIG vin vss PWL(0 2.50
++ 20n 2.50 20.2n 1.10
++ 40n 1.10 40.2n 1.10
++ 60n 1.10 60.2n 1.30
++ 80n 1.30 80.2n 1.50
++ 100n 1.50 100.2n 1.70
++ 120n 1.70 120.2n 1.90
++ 140n 1.90 140.2n 2.10
++ 160n 2.10 160.2n 2.30
++ 180n 2.30 180.2n 2.50
++ 200n 2.50 200.2n 1.10
++ 220n 1.10 220.2n 2.50
++ 240n 2.50 240.2n 1.26
++ 260n 1.26 260.2n 1.14
++ 280n 1.14 280.2n 1.46
++ 300n 1.46 300.2n 1.34
++ 320n 1.34 320.2n 1.66
++ 340n 1.66 340.2n 1.54
++ 360n 1.54 360.2n 1.86
++ 380n 1.86 380.2n 1.74
++ 400n 1.74 400.2n 2.06
++ 420n 2.06 420.2n 1.94
++ 440n 1.94 440.2n 2.26
++ 460n 2.26 460.2n 2.14
++ 480n 2.14 480.2n 2.46
++ 500n 2.46 500.2n 2.34)
+XADC vss vdd vrefn vrefp clk vin b2 b1 b0 flash_adc_3bit
+CB2 b2 vss 50f
+CB1 b1 vss 50f
+CB0 b0 vss 50f
+
+.tran 50p 531n 0 0.2n
+* the grader reads Xyce's raw file (every node and source current); this line is for your own plots
+.print tran format=csv v(clk) v(vin) v(b2) v(b1) v(b0)
+.end

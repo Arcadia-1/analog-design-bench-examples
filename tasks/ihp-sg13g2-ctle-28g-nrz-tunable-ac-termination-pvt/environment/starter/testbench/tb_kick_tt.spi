@@ -1,0 +1,57 @@
+* Public: CTLE stability after disturbances at tt, 3.3 V, 27 C, gain=00, peak=00, inputs held at vocm. Both
+* 200 fF loads return to vdist, which steps by +100 mV at 100 ns; at 1 us a +1 mA, 5 ns differential current pulse
+* enters voutp and leaves voutn. Grading reads the output common mode and the differential output from 3.1 us to
+* 4.1 us, with other disturbance signs and times.
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib" mos_tt
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerMOShv.lib" mos_tt
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerHBT.lib" hbt_typ
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerRES.lib" res_typ
+.lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerCAP.lib" cap_typ
+.include "/app/circuit.spi"
+.options filetype=ascii reltol=2e-4 abstol=1e-12 vntol=1e-6
+.param supply=3.3
+.param temperature=27
+.temp {temperature}
+.param code_g0=0
+.param code_g1=0
+.param code_p0=0
+.param code_p1=0
+.param kick_cm=0.1
+.param kick_dm=1m
+.param kick_t=1u
+VSS vss 0 0
+VDD vdd vss {supply}
+IREF vdd iref 100u
+VOCM vcmsrc vss {supply/2}
+RVOCM vcmsrc vocm 10
+VSP srcp vcmsrc DC 0
+RSP srcp vinp 50
+VSN srcn vcmsrc DC 0
+RSN srcn vinn 50
+VGB0 sgb0 vss {code_g0*supply}
+RGB0 sgb0 gain_b0 1k
+VGB1 sgb1 vss {code_g1*supply}
+RGB1 sgb1 gain_b1 1k
+VPB0 spb0 vss {code_p0*supply}
+RPB0 spb0 peak_b0 1k
+VPB1 spb1 vss {code_p1*supply}
+RPB1 spb1 peak_b1 1k
+XDUT vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn ctle_28g
+CLP voutp vdist 200f
+CLN voutn vdist 200f
+VDIST vdist vss DC 0 PWL(0 0 100n 0 110n {kick_cm})
+IKP 0 voutp DC 0 PULSE(0 {kick_dm} {kick_t} 0.5n 0.5n 5n 1)
+IKN voutn 0 DC 0 PULSE(0 {kick_dm} {kick_t} 0.5n 0.5n 5n 1)
+
+.control
+tran 0.5n 4.1u 0 0.5n
+write signoff_tran.raw
+let cm_out = 0.5*(v(voutp)+v(voutn))
+let dm_out = v(voutp)-v(voutn)
+meas tran cm_kick_max_v max cm_out from=3.1u to=4.1u
+meas tran cm_kick_min_v min cm_out from=3.1u to=4.1u
+meas tran dm_kick_max_v max dm_out from=3.1u to=4.1u
+meas tran dm_kick_min_v min dm_out from=3.1u to=4.1u
+echo CTLE_ANALYSES_COMPLETE
+.endc
+.end
