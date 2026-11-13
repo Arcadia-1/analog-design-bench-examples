@@ -1029,8 +1029,9 @@ def with_energy(deck_text: str, storage: tuple[list[str], list[str], list[str]],
     missing = [d["after"] for d in pending if not d.get("_done")]
     if missing:
         raise SpecError(f"energy window: no control line starts with {missing}")
-    if windows and saves and ctrl_at is not None:
-        # The MOS charges vary over the run, so the transient keeps them as vectors; `save all` keeps everything else.
+    if windows and ctrl_at is not None:
+        # The energy terms read node voltages, source currents and the MOS charges, which a bench's own `.save`
+        # line may have dropped: `save all` keeps every vector, and the MOS charges are saved explicitly.
         out[ctrl_at:ctrl_at] = ["save all"] + [f"save {' '.join(saves[j:j + 24])}" for j in range(0, len(saves), 24)]
     return "\n".join(out) + "\n", windows
 

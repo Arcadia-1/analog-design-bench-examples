@@ -18,6 +18,7 @@ in VIOLATIONS and appended to RULES_FILE. utils.write_results adds a failed `sig
 when any run broke a rule. `enforce()` does the same for a verifier that writes reward.json itself.
 """
 import os
+import threading
 import re
 import subprocess
 from pathlib import Path
@@ -105,7 +106,8 @@ def prepare(deck):
         graded = s.with_diffusion_geometry(graded) or graded
         graded = s.with_mismatch_mult(graded) or graded
         circuits.append(graded)
-        copy = deck.parent / f".signoff-{i}-{path.name}"
+        # unique per deck, process and thread: parallel runs in one directory must not share a copy
+        copy = deck.parent / f".signoff-{deck.stem}-{os.getpid()}-{threading.get_ident()}-{i}-{path.name}"
         copy.write_text(s.with_xhigh_po_tc(graded) or graded)
         lines[i] = f'{m.group(1)}"{copy}"'
     text = "\n".join(lines) + "\n"
@@ -131,7 +133,7 @@ def spiceinit(cwd):
 
 
 def simulate(cmd, at, text, deck, cwd, timeout, env=None):
-    copy = deck.parent / f".signoff-{deck.name}"
+    copy = deck.parent / f".signoff-{os.getpid()}-{threading.get_ident()}-{deck.name}"
     copy.write_text(text)
     run = [str(c) for c in cmd]
     run[at] = str(copy)
