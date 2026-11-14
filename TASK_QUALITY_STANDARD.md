@@ -44,6 +44,15 @@ tasks.
 - Each round starts from the task as it stands after the previous round's fixes, because fixes can open new holes.
 - A reviewer runs the reference, the starter, the mutants and the alternatives, and builds and grades cheat or shortcut designs aimed at the verifier: hidden energy or current sources, unmetered pins, measurements a broken design can satisfy, rules the checker does not enforce. Every cheat that earns credit it should not becomes a mutant once the hole is closed.
 - The task is ready only when the final round reports no open P0 or P1. The review reports record each round, its reviewer, the cheats tried and their scores.
+- Reviews target physical and measurement shortcuts. Netlist syntax tricks (comment, whitespace or control-character games) are out of scope: the checker stays simple, and such tricks are caught by the audit after evaluation runs, not by hardening the parser in advance.
+
+
+## Audit after evaluation runs
+
+- After every trial or formal evaluation run, audit a sample of the results of each task with an independent sub-agent or a different model.
+- Audit the high-scoring submissions for gaming: a design that earns credit without doing what the task asks (an unmetered pin, hidden stored energy, a measurement it sidesteps, a netlist trick). A confirmed case is scored 0, the hole is closed, and the design becomes a mutant.
+- Audit the zero-scoring submissions for task faults: a legal design refused by the checker, a simulator or environment failure, a timeout, or a spec that misleads. A confirmed task fault is fixed and the affected results are re-graded.
+- Record each audit (task, run, submissions checked, findings and actions) with the task's review reports.
 
 ## Reference solution
 
