@@ -1,6 +1,6 @@
 """Running Xyce under this task's GF180MCU signoff rules (/app/spec/signoff-rules.md).
 
-`run(deck, windows)` simulates one bench deck the way grading does:
+`run(deck)` simulates one bench deck the way grading does:
 
 - the circuit under test is every `.include` outside the PDK (/opt/gf180), the grader's own files and the public
   signoff folder. It must pass check_circuit.py. It is simulated as rewritten here: `m=K` on a local subcircuit
@@ -9,11 +9,8 @@
 - Xyce runs once in a fresh folder and writes every node voltage and source current to a binary raw file. A run that
   fails runs once more with gear integration;
 - from the raw file: no MOS may see more than 4.0 V gate-source, gate-drain or drain-source, or 5.5 V gate-bulk, at
-  any time point; no source-bulk or drain-bulk junction may be forward biased by more than 0.4 V at the operating
-  point (t = 0); and in every power window the energy stored in the circuit (every ideal C, the gate oxide of every
-  MOS and the source and drain junctions of every MOS) may not end the window more than 5 % of the energy the
-  bench's sources deliver in it (plus 20 nA x supply x window length, plus 0.5 fJ) below its level at the window
-  start, so a reservoir charged during the unmetered warm-up and spent in the window is caught.
+  any time point; and no source-bulk or drain-bulk junction may be forward biased by more than 0.4 V at the quiet
+  instant after the supplies have ramped up and before the first clock edge (JUNCTION_TIME).
 
 The result is a dict: `names` and `data` (the raw file's variables and points), `rule` (the first broken rule, or
 None), `error` (the run did not complete), and `log`. Standard library and NumPy.
@@ -39,23 +36,18 @@ RETRY_OPTION = ".options timeint method=gear"
 DIFFUSION_M = 0.18e-6
 RATINGS = {"vgs": 4.0, "vgd": 4.0, "vds": 4.0, "vgb": 5.5}  # 3.63 V maximum operating voltage + 10 %
 JUNCTION_FORWARD_MAX = 0.4
-COX = 3.9 * 8.854e-12 / 8e-9  # F/m^2: the 3.3 V devices' toxe = 8 nm
-# junction capacitance per area (F/m^2) and per perimeter (F/m) of the 3.3 V devices (cjs, cjsws in their model cards)
-JUNCTION_C = {"nfet_03v3": (0.968e-3, 1.566e-10), "pfet_03v3": (0.943e-3, 1.508e-10)}
-ENERGY_FRACTION = 0.02
-ENERGY_FLOOR_CURRENT = 20e-9
-ENERGY_FLOOR = 0.5e-15
-GROUND = {"0", "gnd"}
+JUNCTION_TIME = 9e-9  # after the supplies ramp up (0-5 ns), before the first clock edge (10 ns)
 
 
-# ---- circuit rewrite ----------------------------------------------------------------------------------------------
+# ---- circuit rewrite ------------------------------------------------------------------------------------------------
 
 def _params(words: list[str]) -> dict[str, str]:
     return {w.split("=", 1)[0].lower(): w.split("=", 1)[1] for w in words if "=" in w}
 
 
 def rewrite(circuit_text: str) -> str:
-    """The circuit as simulated: local-subcircuit multipliers expanded, MOS diffusion geometry filled in."""
+    """The circuit as simulated: local-subcircuit and R/C multipliers expanded, MOS diffusion geometry filled in.
+    The text has passed check_circuit.py, so X, R and C take no parameter but m and MOS none but w, l and m."""
     out = []
     for _, line in cc.logical_lines(circuit_text):
         words = line.split()
@@ -63,34 +55,27 @@ def rewrite(circuit_text: str) -> str:
         params = _params(words)
         plain = [w for w in words if "=" not in w]
         if kind == "x" and "m" in params:
-            k = int(cc.spice_number(params["m"]))
-            others = [w for w in words[1:] if "=" in w and not w.lower().startswith("m=")]
-            for i in range(1, k + 1):
-                out.append(" ".join([f"{plain[0]}_m{i}"] + plain[1:] + others))
-            continue
-        if kind in "rc" and "m" in params:
+            out += [" ".join([f"{plain[0]}_m{i}"] + plain[1:]) for i in range(1, int(cc.spice_number(params["m"])) + 1)]
+        elif kind in "rc" and "m" in params:
             k, value = cc.spice_number(params["m"]), cc.spice_number(plain[3])
             out.append(" ".join(plain[:3] + [f"{value / k if kind == 'r' else value * k:.9g}"]))
-            continue
-        if kind == "m":
-            w = cc.spice_number(params.get("w", ""))
-            if w:
-                geometry = {"ad": w * DIFFUSION_M, "as": w * DIFFUSION_M,
-                            "pd": 2 * (w + DIFFUSION_M), "ps": 2 * (w + DIFFUSION_M)}
-                line = " ".join([w_ for w_ in line.split() if w_.split("=", 1)[0].lower() not in geometry]
-                                + [f"{k}={v:.6g}" for k, v in geometry.items()])
-        out.append(line)
+        elif kind == "m":
+            w = cc.spice_number(params["w"])
+            area, perimeter = w * DIFFUSION_M, 2 * (w + DIFFUSION_M)
+            out.append(" ".join(words + [f"{k}={v:.6g}" for k, v in
+                                         (("ad", area), ("as", area), ("pd", perimeter), ("ps", perimeter))]))
+        else:
+            out.append(line)
     return "\n".join(out) + "\n"
 
 
 # ---- raw file -------------------------------------------------------------------------------------------------------
 
 def read_raw(path: Path) -> tuple[list[str], np.ndarray]:
-    """Variables (upper case, as Xyce names them) and points of a binary or ASCII SPICE raw file."""
+    """Variables (upper case, as Xyce names them) and points of a binary SPICE raw file."""
     blob = path.read_bytes()
     marker = blob.find(b"Binary:\n")
-    ascii_marker = blob.find(b"Values:\n")
-    head = blob[: marker if marker >= 0 else ascii_marker].decode(errors="replace")
+    head = blob[:marker].decode(errors="replace")
     nvars = int(re.search(r"No\. Variables:\s*(\d+)", head).group(1))
     npoints = int(re.search(r"No\. Points:\s*(\d+)", head).group(1))
     names = []
@@ -98,19 +83,9 @@ def read_raw(path: Path) -> tuple[list[str], np.ndarray]:
         parts = line.split()
         if len(parts) >= 3 and parts[0].isdigit():
             names.append(parts[1].upper())
-    if marker >= 0:
-        data = np.frombuffer(blob[marker + 8:], dtype="<f8")
-        npoints = min(npoints, data.size // nvars)
-        data = data[: npoints * nvars].reshape(npoints, nvars)
-    else:
-        values = blob[ascii_marker + 8:].decode().split()
-        rows = []
-        i = 0
-        while i + nvars < len(values) + 1 and len(rows) < npoints:
-            rows.append([float(v) for v in values[i + 1:i + 1 + nvars]])
-            i += nvars + 1
-        data = np.array(rows)
-    return names[:nvars], data
+    data = np.frombuffer(blob[marker + 8:], dtype="<f8")
+    npoints = min(npoints, data.size // nvars)
+    return names[:nvars], data[: npoints * nvars].reshape(npoints, nvars)
 
 
 # ---- flattening -----------------------------------------------------------------------------------------------------
@@ -130,12 +105,11 @@ def _subckts(text: str) -> dict[str, dict]:
     return found
 
 
-def flatten(circuit_text: str, deck_text: str) -> dict:
-    """MOS devices, capacitors and resistors inside every top-level instance of a circuit subcircuit, with Xyce's
-    hierarchical node names (XADC:XC1:TAIL), and the set of nodes outside the circuit."""
+def flat_mos(circuit_text: str, deck_text: str) -> list[dict]:
+    """Every MOS inside every top-level instance of a circuit subcircuit, with Xyce's hierarchical names
+    (XADC:XC1:TAIL); "0" is Xyce's only global ground."""
     subckts = _subckts(circuit_text)
-    mos, caps, res = [], [], []
-    outside = set()
+    mos = []
 
     def walk(name, prefix, nodemap, depth):
         if depth > 32:
@@ -143,27 +117,18 @@ def flatten(circuit_text: str, deck_text: str) -> dict:
 
         def node(n):
             n = n.lower()
-            return "0" if n in GROUND else nodemap.get(n, f"{prefix}{n}".upper())
+            return "0" if n == "0" else nodemap.get(n, f"{prefix}{n}".upper())
 
         for words in subckts[name]["lines"]:
             kind = words[0][0].lower()
             plain = [w for w in words if "=" not in w]
-            params = _params(words)
             path = f"{prefix}{words[0]}".upper()
             if kind == "x":
                 target = plain[-1].lower()
-                child = subckts[target]
-                walk(target, f"{path}:", {p: node(n) for p, n in zip(child["pins"], plain[1:-1])}, depth + 1)
+                walk(target, f"{path}:", {p: node(n) for p, n in zip(subckts[target]["pins"], plain[1:-1])},
+                     depth + 1)
             elif kind == "m":
-                w, l = cc.spice_number(params["w"]), cc.spice_number(params["l"])
-                m = cc.spice_number(params.get("m", "1"))
-                mos.append({"path": path, "model": plain[5].lower(), "nodes": [node(n) for n in plain[1:5]],
-                            "area": w * l * m, "w": w, "m": m})
-            elif kind == "c":
-                caps.append({"path": path, "nodes": [node(n) for n in plain[1:3]],
-                             "c": cc.spice_number(plain[3]) * cc.spice_number(params.get("m", "1"))})
-            elif kind == "r":
-                res.append([node(n) for n in plain[1:3]])
+                mos.append({"path": path, "model": plain[5].lower(), "nodes": [node(n) for n in plain[1:5]]})
 
     in_sub = False
     for _, line in cc.logical_lines(deck_text):
@@ -173,79 +138,36 @@ def flatten(circuit_text: str, deck_text: str) -> dict:
             in_sub = True
         elif head == ".ends":
             in_sub = False
-        elif not in_sub and not head.startswith("."):
+        elif not in_sub and head[0] == "x":
             plain = [w for w in words if "=" not in w]
-            for n in plain[1:3] if head[0] in "vrcli" else plain[1:-1] if head[0] == "x" else []:
-                outside.add("0" if n.lower() in GROUND else n.upper())
-            if head[0] == "x" and plain[-1].lower() in subckts:
-                target = subckts[plain[-1].lower()]
-                nodemap = {p: ("0" if n.lower() in GROUND else n.upper()) for p, n in zip(target["pins"], plain[1:-1])}
-                walk(plain[-1].lower(), f"{words[0]}:".upper(), nodemap, 0)
-    return {"mos": mos, "caps": caps, "res": res, "outside": outside}
-
-
-def sources(deck_text: str) -> list[dict]:
-    """Top-level voltage sources that can deliver energy (a 0 V source delivers none)."""
-    found, in_sub = [], False
-    for _, line in cc.logical_lines(deck_text):
-        words = line.split()
-        head = words[0].lower()
-        if head == ".subckt":
-            in_sub = True
-        elif head == ".ends":
-            in_sub = False
-        elif not in_sub and head[0] == "v" and len(words) >= 4:
-            if [w.lower() for w in words[3:]] in (["0"], ["dc", "0"]):
-                continue
-            dc = cc.spice_number(words[3]) if len(words) == 4 else None
-            found.append({"name": words[0].upper(), "nodes": [n.upper() if n.lower() not in GROUND else "0"
-                                                               for n in words[1:3]], "dc": dc})
-    return found
+            target = plain[-1].lower()
+            if target in subckts:
+                nodemap = {p: ("0" if n == "0" else n.upper()) for p, n in zip(subckts[target]["pins"], plain[1:-1])}
+                walk(target, f"{words[0]}:".upper(), nodemap, 0)
+    return mos
 
 
 # ---- rules ----------------------------------------------------------------------------------------------------------
 
-def xyce_name(node: str) -> str:
-    """The name Xyce's raw file gives a hierarchical node: an instance segment that ends in 0 and is followed by
-    another instance segment is printed with # for that 0 (XADC:XB0:XA:NX is written XADC:XB#:XA:NX; XADC:XB0:PZ is
-    written as it is). check_circuit.py refuses # in names, so the mapping is one to one."""
-    parts = node.upper().split(":")
-    for i in range(len(parts) - 2):
-        if parts[i].endswith("0"):
-            parts[i] = parts[i][:-1] + "#"
-    return ":".join(parts)
-
-
 class Waves:
+    """Node voltages and source currents of one raw file. Xyce writes some hierarchical names with a '#' in place of
+    a '0' (XADC:X00:TAIL as XADC:X#0:TAIL, XADC:X10:N[0] as XADC:X1#0:N[0]); check_circuit.py refuses '#' in names, so
+    every '#' in a voltage name is a '0' and is turned back here. Branch currents keep their '#branch'."""
+
     def __init__(self, names, data):
-        if len(set(names)) != len(names):
+        keys = [n if "#BRANCH" in n else n.replace("#", "0") for n in names]
+        if len(set(keys)) != len(keys):
             raise ValueError("the raw file names a variable twice")
-        self.index = {n: i for i, n in enumerate(names)}
+        self.index = {k: i for i, k in enumerate(keys)}
         self.data = data
         self.t = data[:, 0]
 
     def v(self, node):
         if node == "0":
             return np.zeros_like(self.t)
-        for key in (node.upper(), xyce_name(node)):
-            if key in self.index:
-                return self.data[:, self.index[key]]
-        raise KeyError(f"node {node} not in the raw file")
-
-    def i(self, source):
-        return self.data[:, self.index[f"{source.upper()}#BRANCH"]]
-
-
-def _interp(t, y, at):
-    return float(np.interp(at, t, y))
-
-
-def _integral(t, y, a, b):
-    """Integral of y over [a, b], linear between points."""
-    inside = (t > a) & (t < b)
-    tt = np.concatenate(([a], t[inside], [b]))
-    yy = np.concatenate(([np.interp(a, t, y)], y[inside], [np.interp(b, t, y)]))
-    return float(np.sum((yy[1:] + yy[:-1]) * np.diff(tt)) / 2)
+        if node not in self.index:
+            raise KeyError(f"node {node} not in the raw file")
+        return self.data[:, self.index[node]]
 
 
 def rating_violation(waves: Waves, mos: list[dict]) -> str | None:
@@ -259,67 +181,30 @@ def rating_violation(waves: Waves, mos: list[dict]) -> str | None:
                         f"{RATINGS[key]:g} V at t={t[worst]:.4g} s")
         sign = 1.0 if dev["model"].startswith("n") else -1.0
         for key, diff in (("vbs", b - s), ("vbd", b - d)):
-            forward = sign * diff[0]
-            if forward > JUNCTION_FORWARD_MAX:
-                return (f"junction forward biased at the operating point: {dev['path']} ({dev['model']}) "
-                        f"{key}={diff[0]:.3f} V (forward {forward:.3f} V > {JUNCTION_FORWARD_MAX:g} V)")
-    return None
-
-
-def stored_energy(waves: Waves, flat: dict) -> np.ndarray:
-    """Energy stored in the circuit at every time point: 1/2 C v^2 of every ideal capacitor, 1/2 Cox W L m v^2 of
-    every MOS gate oxide (v from gate to the mean of source and drain), and 1/2 (Cj A + Cjsw P) m v^2 of every
-    source and drain junction (v from the diffusion to the bulk, A and P the signoff geometry). Linear capacitances:
-    the junctions' depletion makes the true value smaller, so this counts at least the stored energy."""
-    energy = np.zeros_like(waves.t)
-    for cap in flat["caps"]:
-        a, b = (waves.v(n) for n in cap["nodes"])
-        energy += 0.5 * cap["c"] * (a - b) ** 2
-    for dev in flat["mos"]:
-        d, g, s, b = (waves.v(n) for n in dev["nodes"])
-        energy += 0.5 * COX * dev["area"] * (g - 0.5 * (d + s)) ** 2
-        cj, cjsw = JUNCTION_C[dev["model"]]
-        junction = (cj * dev["w"] * DIFFUSION_M + cjsw * 2 * (dev["w"] + DIFFUSION_M)) * dev["m"]
-        energy += 0.5 * junction * ((d - b) ** 2 + (s - b) ** 2)
-    return energy
-
-
-def energy_violation(waves: Waves, flat: dict, srcs: list[dict], windows: list[tuple[float, float]]) -> str | None:
-    t = waves.t
-    energy = stored_energy(waves, flat)
-    supply = max([abs(s["dc"]) for s in srcs if s["dc"] is not None] or [3.3])
-    for a, b in windows:
-        a, b = max(a, t[1]), min(b, t[-1])
-        # release is measured against the stored energy at the window start: everything stored by then (including
-        # anything charged during the unmetered warm-up) is already present, so any of it spent in the window counts.
-        release = _interp(t, energy, a) - _interp(t, energy, b)
-        delivered = 0.0
-        for src in srcs:
-            p = -(waves.v(src["nodes"][0]) - waves.v(src["nodes"][1])) * waves.i(src["name"])
-            delivered += _integral(t, np.maximum(p, 0.0), a, b)
-        allowed = ENERGY_FRACTION * delivered + ENERGY_FLOOR_CURRENT * supply * (b - a) + ENERGY_FLOOR
-        if release > allowed:
-            return (f"stored energy: window {a:.4g}..{b:.4g} s: capacitors inside the circuit released "
-                    f"{release * 1e15:.4g} fJ, more than {ENERGY_FRACTION * 100:g} % of the {delivered * 1e15:.4g} fJ "
-                    f"the bench's sources delivered plus {(allowed - ENERGY_FRACTION * delivered) * 1e15:.3g} fJ; the "
-                    "circuit ran on charge stored before the window")
+            quiet = float(np.interp(JUNCTION_TIME, t, diff))
+            if sign * quiet > JUNCTION_FORWARD_MAX:
+                return (f"junction forward biased before the first clock edge: {dev['path']} ({dev['model']}) "
+                        f"{key}={quiet:.3f} V at t={JUNCTION_TIME:.3g} s (forward {sign * quiet:.3f} V > "
+                        f"{JUNCTION_FORWARD_MAX:g} V)")
     return None
 
 
 # ---- running --------------------------------------------------------------------------------------------------------
 
 def _error_line(log: str) -> str:
+    dc = [ln.strip() for ln in log.splitlines() if re.search(r"DC path to ground", ln, re.I)]
+    if dc:  # a node with no DC path to ground: Xyce names it in this warning before it aborts
+        return dc[0][:200]
     lines = [ln.strip() for ln in log.splitlines()
              if re.search(r"error|fatal|abort|too small|failed to|unable", ln, re.I)
              and not re.search(r"failed steps|failed linear|convergence failures|steps attempted", ln, re.I)]
     return (lines[-1] if lines else log.strip().splitlines()[-1] if log.strip() else "no output")[:200]
 
 
-def run(deck: Path, windows: list[tuple[float, float]], keep: Path | None = None) -> dict:
+def run(deck: Path, keep: Path | None = None) -> dict:
     """Simulate `deck` under the signoff rules; see the module docstring."""
     deck = Path(deck).resolve()
-    text = deck.read_text(errors="replace")
-    lines = text.splitlines()
+    lines = deck.read_text(errors="replace").splitlines()
     circuit_parts = []
     with tempfile.TemporaryDirectory(prefix="xyce-") as tmp:
         work = keep or Path(tmp)
@@ -345,7 +230,6 @@ def run(deck: Path, windows: list[tuple[float, float]], keep: Path | None = None
             copy.write_text(graded)
             lines[i] = f'{m.group(1)}"{copy}"'
         rewritten = "\n".join(lines) + "\n"
-        log = ""
         for attempt, option in enumerate((None, RETRY_OPTION)):
             body = rewritten if option is None else "\n".join(lines[:1] + [option] + lines[1:]) + "\n"
             run_deck = work / f"run{attempt}.cir"
@@ -368,9 +252,7 @@ def run(deck: Path, windows: list[tuple[float, float]], keep: Path | None = None
         return result
     try:
         waves = Waves(names, data)
-        flat = flatten("\n".join(circuit_parts), rewritten)
-        result["rule"] = (rating_violation(waves, flat["mos"])
-                          or energy_violation(waves, flat, sources(rewritten), windows))
+        result["rule"] = rating_violation(waves, flat_mos("\n".join(circuit_parts), rewritten))
     except (KeyError, ValueError) as error:
         result["rule"] = f"signoff accounting failed: {error}"
     return result

@@ -52,18 +52,20 @@ let output_diff_v = v(voutp)-v(voutn)
 let output_offset_v = abs(output_diff_v)
 let vocm_pin_v = v(vocm)
 let vocm_pin_i = -i(vocm)
+let iref_pin_v = v(iref)
 let power_w = -v(vdd)*i(vdd)
 let other_source_power_w = abs(v(vcmsrc)*i(vocm)) + abs((v(srcp)-v(vcmref))*i(vsp)) + abs((v(srcn)-v(vcmref))*i(vsn)) + abs(v(sgb0)*i(vgb0)) + abs(v(sgb1)*i(vgb1)) + abs(v(spb0)*i(vpb0)) + abs(v(spb1)*i(vpb1))
 let voutp_v = v(voutp)
 let voutn_v = v(voutn)
 write signoff_op0.raw
-print output_common_mode_v output_diff_v output_offset_v vocm_pin_v vocm_pin_i power_w other_source_power_w voutp_v voutn_v
+print output_common_mode_v output_diff_v output_offset_v vocm_pin_v vocm_pin_i iref_pin_v power_w other_source_power_w voutp_v voutn_v
 
 alter vcmstep dc = 0.01
 op
 write signoff_op1.raw
 let vocm_step_cm_v = 0.5*(v(voutp)+v(voutn))
-print vocm_step_cm_v
+let vocm_step_i = -i(vocm)
+print vocm_step_cm_v vocm_step_i
 alter vcmstep dc = 0
 
 ac dec 20 100 40g

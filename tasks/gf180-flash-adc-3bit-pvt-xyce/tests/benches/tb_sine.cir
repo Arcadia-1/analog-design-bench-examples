@@ -1,19 +1,22 @@
 * Hidden 16-sample coherent sine: bin 1 of 16 (3.125 MHz), 0.74 V amplitude around 1.8 V.
 * The phase puts every ideal sample at least 0.15 LSB from a threshold for any sampling instant from the start of
 * the clock source's rising edge to 1.5 ns after it.
+* Zero-state start: every source ramps up from 0 V over the first 5 ns, and power is metered from t = 0, so
+* the circuit pays for any charge it stores (see spec/README.md).
 .include "/opt/gf180/pdk/gf180mcuD/libs.tech/xyce/design.xyce"
 .lib "/opt/gf180/pdk/gf180mcuD/libs.tech/xyce/sm141064.xyce" typical
 .include "/app/circuit.spi"
 .options device temp=27
 VSS vss 0 0
-VSUP vdd vss 3.3
-VRP vrefp_s vss 2.6
+VSUP vdd vss PWL(0 0 5n 3.3)
+VRP vrefp_s vss PWL(0 0 5n 2.6)
 RRP vrefp_s vrefp 10
-VRN vrefn_s vss 1.0
+VRN vrefn_s vss PWL(0 0 5n 1.0)
 RRN vrefn_s vrefn 10
 VCK clk_s vss PULSE(0 3.3 10n 0.3n 0.3n 9.4n 20n)
 RCK clk_s clk 50
-VSIG vin_s vss SIN(1.8 0.74 3.125Meg 0 0 52)
+BSIG vin_b vss V={min(1,TIME/5n)*(1.8+0.74*sin(2*pi*3.125e+06*TIME+52*pi/180))}
+VSIG vin_s vin_b 0
 RSIG vin_s vin 50
 XADC vss vdd vrefn vrefp clk vin b2 b1 b0 flash_adc_3bit
 CB2 b2 vss 50f

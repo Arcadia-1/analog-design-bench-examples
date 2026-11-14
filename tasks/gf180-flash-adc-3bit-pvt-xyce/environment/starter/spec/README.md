@@ -34,6 +34,11 @@ hierarchy. Grading scores only the external electrical behavior below.
   circuit draws at `vin` (comparator kickback included) moves the pin.
 - The code of each conversion is read 19 ns after the clock source starts the
   rising edge, comparing each output with `vdd`/2.
+- Zero-state start: every bench begins with every node at 0 V. The supply,
+  both references and the input ramp up from 0 V to their values over the
+  first 5 ns; the clock stays at 0 V until its first edge at 10 ns. A circuit
+  therefore holds no charge at t = 0 and must store whatever it uses within
+  the run.
 
 ## Coverage
 
@@ -107,14 +112,20 @@ Measurement definitions:
 - **SNDR** of a record: the record mean is removed; SNDR is the power in the
   tone bin over the summed power of all other bins up to Nyquist (the Nyquist
   bin at half weight).
-- **Power** is the average over the scored conversions (from the third rising
-  edge, 50 ns, to 1 ns before the end of the bench) of the net power into the
-  circuit at its pins: `v(vdd)·i(vdd) + v(vrefp)·i(vrefp) + v(vrefn)·i(vrefn)
-  + v(clk)·i(clk) + v(vin)·i(vin)`, each pin voltage times the current flowing
-  into that pin. Power taken from the clock or the input counts the same as
-  supply power, and power returned into a pin (for example ladder current into
-  `vrefn`) counts negative. The worst run of all three benches is graded. The
-  stored-energy rule in `signoff-rules.md` applies to the same window.
+- **Power** is the average, from t = 0 to 1 ns before the end of the bench, of
+  the power into the circuit at its five pins, each pin voltage times the
+  current flowing into that pin. Because the bench starts from zero state and
+  the average starts at t = 0, every joule the circuit stores or burns is
+  counted, including the charging of its own capacitors during start-up; there
+  is no separate stored-energy rule. On `vdd`, `vrefp` and `vrefn`, which are DC
+  rails, the net v·i is used, so power returned into a pin (for
+  example ladder current into `vrefn`) counts negative. On `clk` and `vin`,
+  which swing and are driven through a series resistor, only the positive part
+  of v·i is used: the energy delivered into the pin on every edge, which a
+  capacitive or resistive load there cannot return to hide. Power taken from
+  the clock or the input counts the same as supply power. The worst run of all
+  three benches is graded. Warm-up conversions are excluded from the code
+  checks, not from power.
 
 Not scored: INL and DNL beyond the 0.3 LSB threshold window and the sine
 records, device noise, mismatch and Monte Carlo, metastability, and supplies,

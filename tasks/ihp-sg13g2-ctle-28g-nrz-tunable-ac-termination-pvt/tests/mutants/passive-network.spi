@@ -1,0 +1,11 @@
+* Mutant: No active device: 100 ohm terminations to vocm in parallel with a 50/50 ohm divider to each output,
+* and 1 kohm on iref. Has no active path at the nominal point, so no check is scored.
+.subckt ctle_28g vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn
+RIREF iref vss 1k
+RTP vinp vocm 100
+RTN vinn vocm 100
+R1P vinp voutp 50
+R2P voutp vocm 50
+R1N vinn voutn 50
+R2N voutn vocm 50
+.ends ctle_28g

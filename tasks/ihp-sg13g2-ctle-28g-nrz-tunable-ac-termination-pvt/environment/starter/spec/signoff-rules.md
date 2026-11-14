@@ -9,12 +9,16 @@ and the report names the run and the device. `/app/signoff/run_bench.py` applies
   temperature limiting function received NaN" once per run, a harmless warning from that model.
 - **Netlist.** The file holds only `.subckt` blocks (an optional `.end` is ignored). Inside them: ideal `R`, `C`
   and `L` written as `name node node value`; `K name L1 L2 k` coupling two different `L` of the same subcircuit with
-  `0 < k < 1`; and `X` instances of a local subcircuit (parameter `m=` only, a whole number of parallel copies) or of
+  `0 < k < 1`; and `X` instances of a local subcircuit (no parameters, so no `m=`) or of
   an allowed PDK device with its allowed parameters ([`netlist-guide.md`](netlist-guide.md)). Every value is a
   numeric literal with an optional SPICE scale suffix (`f p n u m k meg g t`). No `.param`, `.include`, `.lib`,
   `.model`, analyses or other control lines, no `{...}`, quotes or inline comments, and no node named `0` or `gnd`
   (use `vss`). Ideal elements stand for on-die passives: an ideal `L` is at most 5 nH and an ideal `C` at most
-  50 pF. The p substrate is `vss`: every NMOS bulk and the `bn` terminal of every HBT, resistor and varactor
+  50 pF. A PDK device takes `m=` up to 100 (a whole number of parallel copies; use `w` and `ng` for a wider
+  device). Whole-circuit budgets count every element, each PDK device times its `m=`: total capacitance at most
+  100 pF, counting ideal C, `cap_cmim` at 1.5 fF/um2, varactor gates at 5 fF/um2, MOS gates at 13 fF/um2 (lv) or
+  5 fF/um2 (hv) and each `npn13G2` at 23 fF plus 3 fF per emitter finger (resistor parasitics are not counted);
+  total ideal inductance at most 10 nH. The p substrate is `vss`: every NMOS bulk and the `bn` terminal of every HBT, resistor and varactor
   must connect to the `vss` pin (this device set has no isolated p-well). Ideal elements are allowed because the PDK
   has no simulation model for inductors and transformers; keep supplies, sources and loads out of the circuit.
   `python3 /app/signoff/check_circuit.py /app/circuit.spi` applies this rule.
@@ -36,5 +40,5 @@ and the report names the run and the device. `/app/signoff/run_bench.py` applies
 - **Convergence.** A run that does not converge (a timestep too small, an aborted analysis, or an operating point
   that could not be found) runs once more with
   `.options gminsteps=50 srcsteps=50 itl1=1000 itl2=500 itl4=200`. A run that still fails scores as missing
-  measurements. A run still going after 300 s is stopped, not retried, and scores as missing measurements; runs that
-  would start after 3000 s of grading are not run and score the same way.
+  measurements. A run still going after 300 s is stopped, not retried, and scores as missing measurements; no retry
+  starts, and no run starts, after 2700 s of grading, and runs not started score the same way.

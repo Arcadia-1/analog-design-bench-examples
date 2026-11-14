@@ -13,7 +13,7 @@ import re
 import sys
 
 # name -> (terminals, {parameter: (minimum, maximum, integer)})
-HV = {"w": (0.3e-6, 1e-3, False), "l": (None, 100e-6, False), "ng": (1, 1000, True), "m": (1, 10000, True)}
+HV = {"w": (0.3e-6, 1e-3, False), "ng": (1, 1000, True), "m": (1, 10000, True)}
 LV = {"w": (0.15e-6, 1e-3, False), "l": (0.13e-6, 100e-6, False), "ng": (1, 1000, True), "m": (1, 10000, True)}
 RES = {"w": (0.5e-6, 1e-3, False), "l": (0.5e-6, 10e-3, False), "b": (0, 10000, True), "m": (1, 10000, True)}
 DEVICES = {
@@ -36,10 +36,28 @@ SUBSTRATE = {"npn13G2": "bn", "npn13G2l": "bn", "npn13G2v": "bn", "rppd": "bn", 
 PREFIX = {"a": 1e-18, "f": 1e-15, "p": 1e-12, "n": 1e-9, "u": 1e-6, "m": 1e-3, "k": 1e3, "M": 1e6, "G": 1e9,
           "T": 1e12}
 IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
-NUMBER = re.compile(r"^([0-9]+\.?[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?(meg|[afpnumkMGT])?$")
+NUMBER = re.compile(r"^([0-9]+\.?[0-9]*|\.[0-9]+)(?:([eE][+-]?[0-9]+)|(meg|[afpnumkMGT]))?$")
 RESERVED = {"include", "section", "endsection", "load", "model", "global", "ground", "subckt", "ends",
             "parameters", "control", "endc", "analysis", "sweep", "embed", "save"}
 MAX_DEPTH = 8
+# Names the IHP SG13G2 VACASK libraries, VACASK's builtins and the loaded device modules already define;
+# a subckt of the design may not reuse them.
+LIBRARY_NAMES = set("""
+Rparasitic bondpad cap_cmim cap_cmomf cap_cmomf_mod cap_cmomi cap_cmomi_mod cap_rfcmim cmim_core cparasitic
+dantenna darea dcorner ddnwpsub dincaparea_mod dinner_mod dinneredge_mod dinrevh_mod dinrevl_mod dinrevlside_mod
+diodevdd_2kv diodevdd_4kv diodevdd_mod diodevss_2kv diodevss_4kv diodevss_mod dmain_mod doutcaparea_mod
+doutcapcorner_mod dpantenna dparea dpcorner dperim dpperim dpwdnw drev_mod dsub_2kv_mod dsub_4kv_mod dsub_mod
+dsubedge0_mod dsubedgexds_mod dsubw isolbox mod1_pnp nmoscl_2 nmoscl_4 nmoscl_psp nmoscl_psp_rf npn13G2 npn13G2_5t
+npn13G2_NX_vbic npn13G2l npn13G2l_5t npn13G2l_NX_vbic npn13G2v npn13G2v_5t npn13G2v_NX_vbic ntap1 pnpMPA
+pnpMPA_mod ptap1 res_rppd rhigh rmod_rhigh rmod_rsil rppd rsil schottky_nbl1 sg13_hv_nmos sg13_hv_pmos
+sg13_hv_svaricap sg13_lv_nmos sg13_lv_pmos sg13g2_default_mod_c sg13g2_default_mod_l sg13g2_default_mod_r
+sg13g2_hv_nmos_psp sg13g2_hv_nmos_psp_rf sg13g2_hv_pmos_psp sg13g2_hv_pmos_psp_rf sg13g2_lv_nmos_psp
+sg13g2_lv_nmos_psp_rf sg13g2_lv_pmos_psp sg13g2_lv_pmos_psp_rf
+vsource isource vcvs vccs ccvs cccs mutual
+sp_resistor sp_capacitor sp_inductor sp_diode sp_bjt vbic13_5t r3_cmc psp103va psp103 psp103_nqs mosvar
+""".split())
+# Total MIM capacitor area (sum of w * l * m over every cap_cmim, counting hierarchy), about 200 pF.
+MIM_AREA_MAX = 133000e-12
 
 
 def parse_value(text):
@@ -48,7 +66,7 @@ def parse_value(text):
     if not match:
         return None
     value = float(match.group(1) + (match.group(2) or ""))
-    prefix = match.group(3)
+    prefix = match.group(3)  # an exponent and an SI prefix together are refused, as VACASK refuses them
     if prefix == "meg":
         value *= 1e6
     elif prefix:
@@ -59,7 +77,7 @@ def parse_value(text):
 def logical_lines(text):
     """Strip comments and join continued lines; yield (line number, statement)."""
     text = re.sub(r"/\*.*?\*/", lambda m: "\n" * m.group(0).count("\n"), text, flags=re.S)
-    pending, start, depth = "", 0, 0
+    pending, start = "", 0
     for number, raw in enumerate(text.splitlines(), 1):
         line = raw.split("//", 1)[0].rstrip()
         if not pending:
@@ -68,8 +86,7 @@ def logical_lines(text):
             pending += line[:-1] + " "
             continue
         pending += line
-        depth = pending.count("(") - pending.count(")")
-        if depth > 0:
+        if pending.count("(") > pending.count(")"):
             pending += " "
             continue
         if pending.strip():
@@ -91,17 +108,18 @@ def parse(text):
             continue
         head = statement.split()[0]
         if head == "subckt":
-            match = re.match(rf"^subckt\s+({IDENT})\s*(?:\(([^()]*)\)|((?:\s+{IDENT})*))\s*$", statement)
             if current is not None:
                 errors.append(f"line {number}: nested subckt definitions are not allowed")
                 continue
+            match = re.match(rf"^subckt\s+({IDENT})\s*(?:\(([^()]*)\)|((?:\s+{IDENT})*))\s*$", statement)
             if not match:
                 errors.append(f"line {number}: malformed subckt line: {statement}")
                 continue
             name = match.group(1)
             ports = (match.group(2) if match.group(2) is not None else match.group(3) or "").split()
-            if name in subckts or name in DEVICES:
-                errors.append(f"line {number}: subckt {name} is defined twice or shadows a PDK cell")
+            if name in subckts or name in LIBRARY_NAMES:
+                errors.append(f"line {number}: subckt {name} is defined twice or reuses a name of the PDK "
+                              f"libraries or the simulator")
             bad = [p for p in ports if not re.fullmatch(IDENT, p) or p in RESERVED]
             if bad or len(set(ports)) != len(ports):
                 errors.append(f"line {number}: invalid or repeated port names in subckt {name}")
@@ -161,7 +179,7 @@ def check_devices(subckts):
                     low, high, integer = allowed[key]
                     if integer and value != int(value):
                         errors.append(f"{where}: {key} must be an integer")
-                    if (low is not None and value < low * (1 - 1e-9)) or value > high * (1 + 1e-9):
+                    if value < low * (1 - 1e-9) or value > high * (1 + 1e-9):
                         errors.append(f"{where}: {key}={value:g} is outside [{low:g}, {high:g}]")
                 if master.startswith("sg13_") and ("w" not in params or "l" not in params):
                     errors.append(f"{where}: MOS devices must set w and l")
@@ -185,24 +203,24 @@ def flatten(subckts, top, prefix, portmap):
     """
     leaves = []
 
-    def walk(name, path, mapping, depth, stack):
-        if depth > MAX_DEPTH or name in stack:
+    def walk(name, path, mapping, stack):
+        if len(stack) > MAX_DEPTH or name in stack:
             raise ValueError(f"subckt {name} is instantiated recursively or deeper than {MAX_DEPTH} levels")
         for inst, nodes, master, params, _ in subckts[name]["instances"]:
             resolved = [mapping.get(n, f"{path}:{n}") for n in nodes]
             if master in DEVICES:
                 leaves.append((f"{path}:{inst}", master, dict(zip(DEVICES[master][0], resolved)), params))
             else:
-                walk(master, f"{path}:{inst}", dict(zip(subckts[master]["ports"], resolved)), depth + 1,
-                     stack | {name})
+                walk(master, f"{path}:{inst}", dict(zip(subckts[master]["ports"], resolved)), stack | {name})
 
-    walk(top, prefix, dict(portmap), 0, frozenset())
+    walk(top, prefix, portmap, frozenset())
     return leaves
 
 
 def check_file(path, required=None):
     try:
-        text = open(path, encoding="utf-8").read()
+        with open(path, encoding="utf-8") as handle:
+            text = handle.read()
     except (OSError, UnicodeDecodeError) as exc:
         return None, [f"cannot read {path}: {exc}"]
     subckts, errors = parse(text)
@@ -215,14 +233,17 @@ def check_file(path, required=None):
             errors.append(f"subckt {name} must have the ports ({' '.join(ports)}) in that order, "
                           f"found ({' '.join(subckts[name]['ports'])})")
         elif not errors:
-            portmap = {p: p for p in ports}
             try:
-                leaves = flatten(subckts, name, "top", portmap)
+                leaves = flatten(subckts, name, "top", {p: p for p in ports})
             except ValueError as exc:
                 errors.append(str(exc))
                 leaves = []
             if not leaves and not errors:
                 errors.append(f"subckt {name} contains no PDK devices")
+            area = sum(p.get("w", 0.0) * p.get("l", 0.0) * p.get("m", 1.0)
+                       for _, master, _, p in leaves if master == "cap_cmim")
+            if area > MIM_AREA_MAX * (1 + 1e-9):
+                errors.append(f"total cap_cmim area {area * 1e12:.0f} um^2 exceeds {MIM_AREA_MAX * 1e12:.0f} um^2")
             for leaf_path, master, terminals, _ in leaves:
                 pin = SUBSTRATE.get(master)
                 if pin and "vss" in ports and terminals[pin] != "vss":

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """Hidden verifier of the IHP SG13G2 bandgap reference task (VACASK)."""
 import json
-import math
 import os
 import sys
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
+import bgr_signoff as bs
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-import bgr_signoff as bs  # noqa: E402
 
 CIRCUIT = os.environ.get("BGR_CIRCUIT", "/app/circuit.sim")
 LOG_DIR = os.environ.get("BGR_LOG_DIR", "/logs/verifier")
@@ -29,8 +28,11 @@ NODESET_MAX_MV = 1.0
 SETTLE_MAX = 10e-6
 OVERSHOOT_MAX = 50e-3
 TARGET_MATCH = 1e-3
-# A circuit is graded as a reference only if these pass; otherwise the reward is 0.
-GATE_CHECKS = ("vref_accuracy", "line_regulation")
+# A circuit is graded as a reference only if vref stays in this coarse window at every DC point and its
+# line regulation and temperature coefficient stay below these coarse limits; otherwise the reward is 0.
+GATE_VREF_MIN, GATE_VREF_MAX = 0.9, 1.3
+GATE_LINE_MAX_MV_PER_V = 20.0
+GATE_TC_MAX_PPM = 500.0
 
 # Coverage.
 CORNERS = ["tt", "ss", "ff", "sf", "fs"]
@@ -44,6 +46,13 @@ STARTUP_MODES = {  # name: (supply rise, load capacitance)
 }
 CHECKS = ["vref_accuracy", "temperature_coefficient", "line_regulation", "load_regulation", "psrr_10khz",
           "noise_10khz", "quiescent_current", "shutdown", "startup_settling", "startup_overshoot"]
+# Checks that fail when a run of this kind fails to simulate.
+DEPENDENT_CHECKS = {
+    "dc": ["vref_accuracy", "temperature_coefficient", "line_regulation", "load_regulation", "quiescent_current",
+           "shutdown", "startup_settling"],
+    "ac": ["psrr_10khz", "noise_10khz"],
+    "startup": ["startup_settling", "startup_overshoot"],
+}
 
 
 def available_cpus():
@@ -103,19 +112,12 @@ def startup_job(corner, vdd, temp, mode):
 
 
 def simulate(job, devices):
-    label, deck = job[0], job[1]
+    label, deck = job
     try:
         plots = bs.run_deck(deck, CIRCUIT)
+        return label, plots, bs.signoff_violations(devices, plots, f"{label}/"), None
     except bs.RunError as exc:
         return label, None, [], str(exc)
-    violations = []
-    try:
-        for name, plot in plots.items():
-            if name in bs.OP_ANALYSES or name == "tr":
-                violations += bs.rule_violations(devices, plot, f"{label}/{name}", dc=name != "tr")
-    except bs.RunError as exc:
-        return label, None, [], str(exc)
-    return label, plots, violations, None
 
 
 def main():
@@ -132,29 +134,29 @@ def main():
     jobs = [dc_job(c) for c in CORNERS] + [ac_job(c) for c in CORNERS]
     jobs += [startup_job(c, v, t, m) for c in CORNERS for v in SUPPLIES for t in EDGE_TEMPS
              for m in STARTUP_MODES]
-    workers = max(1, min(len(jobs), available_cpus()))
-    with ThreadPoolExecutor(workers) as pool:
+    with ThreadPoolExecutor(min(len(jobs), available_cpus())) as pool:
         results = list(pool.map(lambda j: simulate(j, devices), jobs))
     decks = dict(jobs)
 
+    dc_vref = {}
+    gate = []
     for label, plots, violations, error in results:
+        kind = label.split("/")[0]
         report["violations"] += violations
         if error:
             report["failed_runs"][label] = error
-
-    dc_vref = {}
-    for label, plots, _, error in results:
-        kind = label.split("/")[0]
-        if error:
-            dependent = {"dc": CHECKS[:4] + ["quiescent_current", "shutdown", "startup_settling"],
-                         "ac": ["psrr_10khz", "noise_10khz"],
-                         "startup": ["startup_settling", "startup_overshoot"]}[kind]
-            for check in dependent:
+            for check in DEPENDENT_CHECKS[kind]:
                 fail(check, f"{label}: simulation failed")
             continue
         if kind == "dc":
             m = bs.dc_metrics(plots)
             dc_vref[label.split("/")[1]] = m["vref"]
+            if not all(GATE_VREF_MIN <= v <= GATE_VREF_MAX for v in m["vref"].values()):
+                gate.append(f"{label}: vref outside {GATE_VREF_MIN}-{GATE_VREF_MAX} V")
+            if not max(m["line_mv_per_v"].values()) <= GATE_LINE_MAX_MV_PER_V:
+                gate.append(f"{label}: line regulation above {GATE_LINE_MAX_MV_PER_V:g} mV/V")
+            if not max(m["tc_ppm"].values()) <= GATE_TC_MAX_PPM:
+                gate.append(f"{label}: temperature coefficient above {GATE_TC_MAX_PPM:g} ppm/C")
             report["metrics"][label] = {
                 "vref_min": min(m["vref"].values()), "vref_max": max(m["vref"].values()),
                 "tc_ppm_max": max(m["tc_ppm"].values()), "line_mv_per_v_max": max(m["line_mv_per_v"].values()),
@@ -163,7 +165,7 @@ def main():
                 "off_vref_max": max(v for _, _, v in m["off"].values()),
                 "nodeset_spread_mv_max": max(m["nodeset_mv"].values())}
             for (vs, t), v in m["vref"].items():
-                if not VREF_MIN <= v <= VREF_MAX or math.isnan(v):
+                if not VREF_MIN <= v <= VREF_MAX:
                     fail("vref_accuracy", f"{label} {vs:g} V {t:g} C: vref {v:.4f} V")
             for vs, tc in m["tc_ppm"].items():
                 if not tc <= TC_MAX_PPM:
@@ -199,10 +201,9 @@ def main():
             m = bs.startup_metrics(plots, bs.edge_end(decks[label]))
             _, _, corner, vdd, temp = label.split("/")
             reference = dc_vref.get(corner, {}).get((float(vdd[:-1]), float(temp[:-1])))
-            if not (VREF_MIN <= m["target"] <= VREF_MAX) or reference is None \
-                    or abs(m["target"] - reference) > TARGET_MATCH:
-                fail("startup_settling", f"{label}: target operating point {m['target']:.4f} V is outside the "
-                                         f"window or differs from the DC bench ({reference})")
+            if reference is None or abs(m["target"] - reference) > TARGET_MATCH:
+                fail("startup_settling", f"{label}: target operating point {m['target']:.4f} V differs from "
+                                         f"the DC bench ({reference})")
             report["metrics"][label] = {"settle_us": m["settle_s"] * 1e6, "overshoot_mv": m["overshoot_v"] * 1e3,
                                         "target": m["target"]}
             if not m["settle_s"] <= SETTLE_MAX:
@@ -212,17 +213,18 @@ def main():
 
     passed = sum(ok for ok, _ in checks.values())
     reward = passed / len(CHECKS)
-    gate_failed = [name for name in GATE_CHECKS if not checks[name][0]]
-    if gate_failed:
+    if any(label.startswith("dc/") for label in report["failed_runs"]):
+        gate.append("a DC bench run failed")
+    if gate:
         reward = 0.0
-        print(f"NOT A REFERENCE (reward 0): {', '.join(gate_failed)} failed")
+        print(f"NOT A REFERENCE (reward 0): {'; '.join(gate[:3])}")
     if report["violations"]:
         reward = 0.0
         print("SIGNOFF RULE VIOLATIONS (reward 0):")
         for line in report["violations"][:20]:
             print("  " + line)
     report["checks"] = {name: {"passed": ok, "failures": msgs} for name, (ok, msgs) in checks.items()}
-    report["gate_failed"] = gate_failed
+    report["gate_failed"] = gate
     for name, (ok, msgs) in checks.items():
         print(f"{'PASS' if ok else 'FAIL'} {name}" + ("" if ok else ": " + "; ".join(msgs[:3])))
     for label, error in report["failed_runs"].items():

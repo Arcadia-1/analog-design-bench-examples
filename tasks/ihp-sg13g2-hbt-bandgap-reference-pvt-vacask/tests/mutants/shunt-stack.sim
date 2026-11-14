@@ -1,0 +1,12 @@
+// Mutant: not a bandgap and no amplifier. A three-diode HBT stack pre-regulator and a Vbe-multiplier
+// shunt (bottom resistor rhigh, so its TC tilts the gain), fed from the enable pin through resistors.
+subckt bandgap (vdd vss en vref)
+  rb1 (en p vss) rppd w=0.5u l=40u
+  qd1 (p p d1 vss) npn13G2 nx=4
+  qd2 (d1 d1 d2 vss) npn13G2 nx=4
+  qd3 (d2 d2 vss vss) npn13G2 nx=4
+  rb2 (p vref vss) rppd w=0.5u l=173u
+  q2 (vref y vss vss) npn13G2 nx=2
+  rt2 (vref y vss) rppd w=0.5u l=492u
+  rr2 (y vss vss) rhigh w=0.5u l=147u
+ends

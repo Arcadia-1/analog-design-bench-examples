@@ -33,12 +33,21 @@ PARAMS = {"mos": {"w", "l", "ng", "m"}, "hbt": {"nx", "m"}, "res": {"w", "l", "m
 REQUIRED = {"mos": {"w", "l"}, "hbt": set(), "res": {"w", "l"}, "cap": {"w", "l"}, "var": {"w", "l"}}
 VARACTOR_W = (3.74e-6, 9.74e-6)
 VARACTOR_L = (0.3e-6, 0.8e-6)
-MOS_WMIN_PER_FINGER = 0.15e-6
+MOS_W_PER_FINGER = (0.15e-6, 10e-6)
 # Ideal elements stand for on-die passives, so their size is bounded: an inductor no larger than a few spiral turns,
 # a capacitor no larger than a large MIM array (about 0.03 mm2 at 1.5 fF/um2).
 IDEAL_MAX = {"l": 5e-9, "c": 50e-12}
 IDEAL_LIMIT_TEXT = {"l": "5 nH", "c": "50 pF"}
 MOS_LMAX = 10e-6
+# Whole-circuit budgets, every PDK device counted with its m= (local subcircuit instances take no m=), so parallel
+# copies cannot build an off-die-sized element. Capacitance counts ideal C, MIM capacitors at 1.5 fF/um2, varactor
+# gates at 5 fF/um2, MOS gates at 13 fF/um2 (lv) or 5 fF/um2 (hv), and each npn13G2 at 23 fF + 3 fF per emitter
+# finger (substrate and junction capacitance). Resistor parasitics are not counted.
+PDK_M_MAX = 100
+HBT_CAPACITANCE = (23e-15, 3e-15)  # F per device, F per emitter finger
+TOTAL_CAPACITANCE_MAX = 100e-12
+TOTAL_INDUCTANCE_MAX = 10e-9
+AREA_CAPACITANCE = {"cap": 1.5e-3, "var": 5e-3, "lv": 13e-3, "hv": 5e-3}  # F/m2
 CMIM_SIDE = (1.14e-6, 75e-6)
 NX_RANGE = (1, 10)
 
@@ -185,7 +194,44 @@ def check(text, top, top_pins):
                 check_instance(e, subckts)
     check_no_recursion(subckts, top)
     check_substrate(subckts, top, top_pins)
+    check_budget(subckts, top)
     return subckts
+
+
+def budget(subckts, top):
+    """(total capacitance F, total ideal inductance H) of `top`, every element counted with its multiplicity."""
+    totals = {"c": 0.0, "l": 0.0}
+
+    def walk(name, mult):
+        for e in subckts[name]["elements"]:
+            if e["type"] in ("c", "l"):
+                totals[e["type"]] += e["value"] * mult
+            elif e["type"] == "x":
+                m = mult * e["params"].get("m", 1)
+                if e["model"] in subckts:
+                    walk(e["model"], m)
+                    continue
+                spec, par = PDK[e["model"]], e["params"]
+                if spec["kind"] == "cap":
+                    totals["c"] += par["w"] * par["l"] * AREA_CAPACITANCE["cap"] * m
+                elif spec["kind"] == "var":
+                    totals["c"] += 2 * par["w"] * par["l"] * par.get("nx", 1) * AREA_CAPACITANCE["var"] * m
+                elif spec["kind"] == "mos":
+                    totals["c"] += par["w"] * par["l"] * AREA_CAPACITANCE[spec["class"]] * m
+                elif spec["kind"] == "hbt":
+                    totals["c"] += (HBT_CAPACITANCE[0] + HBT_CAPACITANCE[1] * par.get("nx", 1)) * m
+    walk(top, 1)
+    return totals["c"], totals["l"]
+
+
+def check_budget(subckts, top):
+    cap, ind = budget(subckts, top)
+    if cap > TOTAL_CAPACITANCE_MAX * (1 + 1e-9):
+        raise NetlistError(f"total capacitance {cap * 1e12:.1f} pF (ideal C, MIM, varactor, MOS gate area and HBT, "
+                           f"with m=) exceeds {TOTAL_CAPACITANCE_MAX * 1e12:g} pF")
+    if ind > TOTAL_INDUCTANCE_MAX * (1 + 1e-9):
+        raise NetlistError(f"total ideal inductance {ind * 1e9:.2f} nH (with multiplicity) exceeds "
+                           f"{TOTAL_INDUCTANCE_MAX * 1e9:g} nH")
 
 
 def check_substrate(subckts, top, top_pins):
@@ -205,10 +251,9 @@ def check_instance(e, subckts):
     if model in subckts:
         if len(e["nodes"]) != len(subckts[model]["pins"]):
             raise NetlistError(f"{e['name']}: {model} has {len(subckts[model]['pins'])} pins")
-        if set(params) - {"m"}:
-            raise NetlistError(f"{e['name']}: a local subcircuit instance takes only m=")
-        if "m" in params:
-            whole(params["m"], f"{e['name']} m")
+        if params:
+            raise NetlistError(f"{e['name']}: a local subcircuit instance takes no parameters (no m=; ngspice does "
+                               "not multiply m through nested subcircuits consistently)")
         return
     if model not in PDK:
         raise NetlistError(f"{e['name']}: {model} is not an allowed IHP SG13G2 device or a local subcircuit")
@@ -222,13 +267,13 @@ def check_instance(e, subckts):
     missing = REQUIRED[kind] - set(params)
     if missing:
         raise NetlistError(f"{e['name']}: {model} needs {sorted(missing)}")
-    if "m" in params:
-        whole(params["m"], f"{e['name']} m")
+    if "m" in params and whole(params["m"], f"{e['name']} m") > PDK_M_MAX:
+        raise NetlistError(f"{e['name']}: m may be at most {PDK_M_MAX} (use w and ng for a wider device)")
     if kind == "mos":
         ng = whole(params.get("ng", 1), f"{e['name']} ng")
         if params["l"] < spec["lmin"] * (1 - 1e-9) or params["l"] > MOS_LMAX:
             raise NetlistError(f"{e['name']}: l must be {spec['lmin'] * 1e6:g}u to {MOS_LMAX * 1e6:g}u")
-        if params["w"] / ng < MOS_WMIN_PER_FINGER * (1 - 1e-9) or params["w"] / ng > 10e-6 * (1 + 1e-9):
+        if not MOS_W_PER_FINGER[0] * (1 - 1e-9) <= params["w"] / ng <= MOS_W_PER_FINGER[1] * (1 + 1e-9):
             raise NetlistError(f"{e['name']}: w/ng must be 0.15u to 10u")
     elif kind == "hbt":
         nx = whole(params.get("nx", 1), f"{e['name']} Nx")

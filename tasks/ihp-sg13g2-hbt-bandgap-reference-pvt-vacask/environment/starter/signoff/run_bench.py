@@ -6,11 +6,9 @@ Usage, from /app:  python3 signoff/run_bench.py testbench/tb_dc_tt.sim [--circui
 Exit codes: 0 clean run, 2 the netlist check or the simulation failed, 3 a signoff rule is broken.
 """
 import argparse
-import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import bgr_signoff as bs  # noqa: E402
+import bgr_signoff as bs
 
 
 def show(name, values, unit, scale=1.0, fmt="{:.4f}", keys=("V", "C")):
@@ -26,17 +24,15 @@ def main():
     parser.add_argument("--circuit", default="circuit.sim")
     parser.add_argument("--keep", help="copy the simulation directory (decks and raw files) here")
     args = parser.parse_args()
-    deck = open(args.bench).read().replace('include "../circuit.sim"', 'include "circuit.sim"')
+    with open(args.bench) as handle:
+        deck = handle.read().replace('include "../circuit.sim"', 'include "circuit.sim"')
     try:
         devices = bs.dut_devices(args.circuit)
         plots = bs.run_deck(deck, args.circuit, keep=args.keep)
     except bs.RunError as exc:
         print(f"RUN FAILED: {exc}")
         return 2
-    violations = []
-    for name, plot in plots.items():
-        if name in bs.OP_ANALYSES or name == "tr":
-            violations += bs.rule_violations(devices, plot, name, dc=name != "tr")
+    violations = bs.signoff_violations(devices, plots)
     print(f"{args.bench}: analyses {', '.join(sorted(plots))}")
     if "dc" in plots:
         m = bs.dc_metrics(plots)

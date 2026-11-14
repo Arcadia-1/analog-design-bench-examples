@@ -28,7 +28,10 @@ Only `.subckt` / `.ends` blocks, and inside them:
 No sources, switches, behavioral or controlled elements, inductors, models,
 parameters, expressions, includes, options or analyses. Every subcircuit must
 contain at least one element and none may instantiate itself. Names of
-elements, nodes and subcircuits use letters, digits and `_ . - [ ] < >`.
+elements, nodes and subcircuits use letters, digits and `_ . - [ ] < >`. The node names `0` and
+`gnd` are refused: tie ground to the `vss` pin. (In Xyce `gnd` inside a subcircuit is a separate local node,
+not ground.) Every node needs a DC path to `vss` through resistors or MOS channels; a node reached only through
+capacitors or gates makes Xyce abort ("does not have a DC path to ground").
 
 The MOS models are binned BSIM4 cards: write the model name `nfet_03v3` or
 `pfet_03v3` directly on an `M` line (there are no `X` wrappers in the Xyce
