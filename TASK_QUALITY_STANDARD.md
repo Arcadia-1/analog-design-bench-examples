@@ -22,6 +22,7 @@ Every item must hold. The sections below explain each one.
 - [ ] `instruction.md` is a short ticket; interface, conditions, limits and measurement definitions are in `spec/`, each rule once.
 - [ ] `task.toml` has the shape below (taxonomy-only `[metadata]`, agent user `agent`, no network) and parses with Harbor 0.25.0.
 - [ ] Task files carry no repair history, PR numbers or conversion notes.
+- [ ] At least three rounds of adversarial review by independent sub-agents or different models found no open P0 or P1 in the final round (see "Adversarial review").
 
 ## Core principles
 
@@ -36,6 +37,13 @@ Task review follows the maintainers' review guide. Before promotion, a
 candidate must be compared with the existing tasks. A deliberate variant must
 state the externally measurable capability that distinguishes it from existing
 tasks.
+
+## Adversarial review
+
+- Before a task is submitted, it goes through at least three rounds of adversarial review. Each reviewer is an independent sub-agent or a different model that did not write or fix the task and has not read the author's own review notes.
+- Each round starts from the task as it stands after the previous round's fixes, because fixes can open new holes.
+- A reviewer runs the reference, the starter, the mutants and the alternatives, and builds and grades cheat or shortcut designs aimed at the verifier: hidden energy or current sources, unmetered pins, measurements a broken design can satisfy, rules the checker does not enforce. Every cheat that earns credit it should not becomes a mutant once the hole is closed.
+- The task is ready only when the final round reports no open P0 or P1. The review reports record each round, its reviewer, the cheats tried and their scores.
 
 ## Reference solution
 
