@@ -1,9 +1,7 @@
-* FD-08  Closed-loop frequency response and group delay
-* Spec 3.2.2.2 / 3.2.2.7 applied to the FD-01 network (gain -1): AC 1/2 and
-* 1/2 at 180 degrees on the two input resistors, H = (Vop - Von)/Vid.
+* FD-08  Closed-loop frequency response of the gain -1 network
+* AC 1/2 and 1/2 at 180 degrees on the two input resistors, H = (Vop - Von)/Vid.
 {{SEED_OPTION}}
 .lib "{{MODEL_LIB}}" {{CORNER}}
-{{MC_PARAM}}
 .include "{{DUT_FILE}}"
 .temp {{TEMP}}
 .options reltol=1e-5 abstol=1e-15 vntol=1e-9

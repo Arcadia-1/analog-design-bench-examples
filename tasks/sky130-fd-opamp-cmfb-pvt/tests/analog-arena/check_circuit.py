@@ -45,14 +45,46 @@ PUBLIC_MOS_MIN_LENGTH_UM = {
 }
 
 
+def circuit_lines(path: Path) -> list[str]:
+    """Split the file only at `\\n`, as ngspice does, after refusing any other control byte.
+
+    Python's str.splitlines() also breaks at `\\r`, `\\x0b`, `\\x0c`, `\\x1c`-`\\x1e`, `\\x85` and
+    U+2028/U+2029, where ngspice does not, so a parameter after such a character would be seen
+    by ngspice but not by this checker. Outside whole-line `*` comments (which ngspice skips to
+    the next `\\n`), only printable ASCII, tab and a `\\r` directly before `\\n` are accepted.
+    """
+    data = path.read_bytes()
+    for number, raw in enumerate(data.split(b"\n"), 1):
+        body = raw[:-1] if raw.endswith(b"\r") else raw
+        if body.lstrip(b" \t").startswith(b"*"):
+            continue
+        for byte in body:
+            if byte != 0x09 and not 0x20 <= byte <= 0x7E:
+                print(
+                    f"{path}:{number}: byte 0x{byte:02x} is not allowed "
+                    "(use printable ASCII, tabs and plain line ends)"
+                )
+                raise SystemExit(1)
+    text = data.decode("utf-8", errors="replace")
+    return [line[:-1] if line.endswith("\r") else line for line in text.split("\n")]
+
+
 def logical_lines(path: Path):
     lines = []
-    for number, raw in enumerate(path.read_text().splitlines(), 1):
-        text = raw.split("$", 1)[0].split(";", 1)[0].strip()
-        if text.startswith("+") and lines:
-            lines[-1] = (lines[-1][0], f"{lines[-1][1]} {text[1:].strip()}")
+    last = None  # index of the last line a continuation can extend
+    for number, raw in enumerate(circuit_lines(path), 1):
+        # ngspice ends a line at `;`, but `$` starts a comment only at the start
+        # of a line or after whitespace; a `$` glued to a word stays part of it
+        # (and then fails the numeric checks), so it cannot hide parameters.
+        text = re.split(r"(?:^|(?<=\s))\$", raw.split(";", 1)[0], maxsplit=1)[0].strip()
+        if text.startswith("+") and last is not None:
+            # ngspice skips comment and blank lines between a line and its
+            # continuation, so the continuation extends the last real line.
+            lines[last] = (lines[last][0], f"{lines[last][1]} {text[1:].strip()}")
         else:
             lines.append((number, text))
+            if text and not text.startswith("*"):
+                last = len(lines) - 1
     return lines
 
 

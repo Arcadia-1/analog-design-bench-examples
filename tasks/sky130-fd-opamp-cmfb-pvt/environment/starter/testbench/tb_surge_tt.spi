@@ -1,10 +1,10 @@
 * Supply surge at tt / 1.8 V / 27 C in the gain -1 network with zero input: a
 * +/-50 mV square wave with 10 ns edges rides on VDD at 300 kHz.  Prints, over
 * the last full period, the extremes of the output common mode and the
-* peak-to-peak of Vod, and over the last 10 % of the final half period the
-* peak-to-peak of both, which must be far below a millivolt (ringing that has
-* not decayed before the next edge fails), with the common-mode final value.  Grading also uses 100 kHz and
-* 1 MHz and runs at -40 and 125 C.
+* peak-to-peak of Vod; over the last 10 % of the final half period, the
+* common-mode final value and the peak-to-peak of both, which must be far below
+* a millivolt (ringing that has not decayed before the next edge fails).
+* Grading also uses 100 kHz and 1 MHz and runs at -40 and 125 C.
 * Run with `ngspice -b testbench/tb_surge_tt.spi`.
 .lib "/opt/sky130/continuous/sky130.lib.spice" tt
 .include "/app/circuit.spi"

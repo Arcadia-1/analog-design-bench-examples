@@ -3,7 +3,7 @@
 This file is the complete public contract and the only place the limits are stated. SKY130 netlist syntax is in
 `/opt/analog-arena/SKY130_NETLIST_GUIDE.md`.
 
-ngspice reads the Sky130 models with `set ngbehavior=hsa`, the compatibility mode the PDK's own ngspice `spinit` sets for its model cards. Grading sets it in `/root/.spiceinit`; the agent image sets it in `~/.spiceinit`. Do not remove it: without it ngspice evaluates the models differently, and the open-loop gain at hot, low-supply corners changes by several dB.
+ngspice reads the Sky130 models with `set ngbehavior=hsa`, the compatibility mode the PDK's own ngspice `spinit` sets for its model cards. Grading writes it into the working directory of every simulation; the agent image sets it in `~/.spiceinit`, `/app/.spiceinit` and `/app/testbench/.spiceinit`. ngspice reads a `.spiceinit` in its working directory instead of `~/.spiceinit`, so any `.spiceinit` you create where you run ngspice must also contain `set ngbehavior=hsa`. Do not remove it: without it ngspice evaluates the models differently, and the open-loop gain at hot, low-supply corners changes by several dB.
 
 ## Interface and operating conditions
 
@@ -11,9 +11,9 @@ ngspice reads the Sky130 models with `set ngbehavior=hsa`, the compatibility mod
 - Supplies: `vss` is 0 V; `vdd` is 1.8 V nominal.
 - Bias: an ideal 10 uA current flows from `vdd` into `ibias` at every condition except two: the bias-tracking test (8 and 12 uA) and the power-up/power-down test, where it scales with the ramping supply (10 uA x VDD / nominal VDD, clipped at 0). The design must sink it and derive its bias currents from it. The voltage at `ibias` must stay between `vss` and `vdd` at every operating point: an ideal current source can be driven to any voltage, and a pin above `vdd` would let the design draw unmetered power from it.
 - Common-mode point VCM = VDD/2 (0.81, 0.9 and 0.99 V at 1.62, 1.8 and 1.98 V).
-- `vcm` carries VCM. The design's common-mode feedback must hold the output common mode (`voutp` + `voutn`)/2 at it. Every bench feeds the `vcm` pin from its ideal VCM source through 1 kohm, so current the design draws from `vcm` is measured.
+- `vcm` carries VCM. The design's common-mode feedback must hold the output common mode (`voutp` + `voutn`)/2 at it, whatever its value: besides VCM = VDD/2, grading sets VCM to 0.8 V and 1.0 V at the nominal point (`vcm_tracking`). Every bench feeds the `vcm` pin from its ideal VCM source through 1 kohm, so current the design draws from `vcm` is measured.
 - Load: each output drives 2 pF to ground and 1 Mohm to VCM in every application bench (the transconductance benches return the output through 1 kohm instead).
-- Devices: Sky130 1.8 V MOS models (`sky130_fd_pr__nfet_01v8`, `sky130_fd_pr__pfet_01v8` and their `_lvt` variants) within the modeled geometry, plus ideal resistors and capacitors. No sources, behavioral elements or other ideal parts.
+- Devices: Sky130 1.8 V MOS models (`sky130_fd_pr__nfet_01v8`, `sky130_fd_pr__pfet_01v8` and their `_lvt` variants) within the modeled geometry, plus ideal resistors (at most 10 Mohm each) and capacitors (at most 100 pF each, 200 pF in all). An ideal R or C is written `Rname n1 n2 <value>` / `Cname n1 n2 <value>` with a literal value; no instance parameters except an integer multiplier `m=<n>` (n >= 1), which counts as n in parallel (R/m and C*m are what the limits apply to). These limits apply to each element and to the capacitor total, counting every instance reached from `fd_opamp` through local subcircuits: an element inside a subcircuit instantiated with `m=<n>` counts n times (the multipliers of nested X lines multiply), and an X line of a local subcircuit may carry no parameter other than an integer `m`. The limits do not bound series stacks of resistors or the gate capacitance of MOS devices, which are ordinary design choices. Comments follow ngspice: `*` at the start of a line, `;` anywhere, and `$` at the start of a line or after a space or tab; a `$` glued to a word (`50k$`) is part of that word and makes the value invalid. No sources, behavioral elements or other ideal parts. The design connects to the benches only through its eight pins: no node inside it may carry a ground name (`0`, `00`, `0.0`, `gnd`, `gnd!`, any case).
 - PVT points: the corners ff, ss, fs and sf, each at 1.62 and 1.98 V and at -40 and 125 C (16 points), plus the nominal point (tt, 1.8 V, 27 C). These 17 points are a representative subset (the vertices of the declared supply and temperature ranges at the skew corners), not the complete 45-point product; the operating-range sweeps below cover the interior at tt.
 - Critical loads: the 16 PVT points are repeated with a +20 uA and a -20 uA DC current into each output, and with the 1 Mohm load returned to ground instead of VCM (48 more points).
 
@@ -35,6 +35,7 @@ Each check passes or fails; the reward is the fraction of checks that pass. "Eve
 | `pvt_cm_rejection` | Input-common-mode to output-common-mode gain <= -50 dB at every PVT point. |
 | `pvt_cm_supply_rejection` | VDD and VSS rejection at the output common mode >= 30 dB at every PVT point. |
 | `pvt_output_common_mode` | Output common-mode error abs(Vocm - VCM) <= 20 mV at every PVT point. |
+| `vcm_tracking` | abs(Vocm - VCM) <= 20 mV with VCM at 0.8 V and at 1.0 V (tt, 1.8 V, 27 C, gain -1 network, zero input). |
 | `pvt_noise` | White input-referred noise <= 60 nV/sqrt(Hz) at every PVT point, referred to one input source of the capacitive gain -1 network (noise gain 2; see Noise below). |
 | `pvt_distortion` | THD <= -70 dB (0.03 %) at 10 kHz and 1 Vpp per output (2 Vpp differential) at every PVT point. |
 | `full_power_bandwidth` | Full-power bandwidth >= 300 kHz at the nominal point. |
@@ -51,7 +52,7 @@ Each check passes or fails; the reward is the fraction of checks that pass. "Eve
 - **Open loop.** Each input is biased through 1 GH from a differential-only servo (sources acting on Vod around VCM) while 1 GF grounds it for AC, so the DC point is closed-loop and every analysed frequency (1 mHz to 10 GHz) is open-loop. AC +/-0.5 V drives the inputs; the gain is Vod/Vid. Gain is read at 1 mHz, the unity-gain frequency at the first falling 0 dB crossing, phase margin as 180 deg plus the phase there, and gain margin as minus the gain where the phase reaches -180 deg.
 - **Gain -1 network.** 100 kohm input and feedback resistors on each side, feedback from `voutn` to `vinp` and from `voutp` to `vinn`. Closed-loop flatness, CMRR, PSRR, distortion, full-power bandwidth, offset and the output common mode are measured in it. Peaking is the largest gain of Vod/Vid above its low-frequency value (1 Hz to 10 GHz).
 - **Slew and settling.** Capacitive gain -1: 1 pF input and feedback capacitors on each side, with a differential servo (ideal sources through switches) setting the DC level of the amplifier inputs: at DC, Vod sits at the amplifier's offset and the input common mode at VCM. The switches open well before the first edge. The two input sources step +/-0.5 V in antiphase, so Vod steps 1 V, up and down. Slew rate per output is the steepest slope of Vod divided by 2; settling is the time from the input edge until Vod stays within +/-0.1 % of the step around the commanded level: the level before the edge plus 1 V on the rising edge, and back to that starting level on the falling edge.
-- **Input common-mode range.** The inputs sit at a common mode stepped from 0 to VDD in 25 mV steps, with a DC-only differential servo keeping the amplifier open-loop for AC. The range is the contiguous span around VCM where the differential gain at 0.1 Hz stays within 6 dB of its value at VCM, the output common mode within 50 mV of VCM and the differential output abs(Vod) within 10 mV. A step with no operating point counts as outside the range.
+- **Input common-mode range.** The inputs sit at a common mode stepped from 0 to VDD in 25 mV steps, plus the two levels VCM - 50 mV and VCM + 50 mV exactly, with a DC-only differential servo keeping the amplifier open-loop for AC. The range is the contiguous span around VCM where the differential gain at 0.1 Hz stays within 6 dB of its value at VCM, the output common mode within 50 mV of VCM and the differential output abs(Vod) within 10 mV. A step with no operating point counts as outside the range. Each end of the range is placed half-way between the last passing level and the first failing one, so the PVT window VCM +/- 50 mV is covered only when both of its own levels pass.
 - **Output swing.** Gain -2 network (50 kohm inputs, 100 kohm feedback), one input swept from 0 to VDD. VODpp is the Vod span over which the small-signal gain stays at least 90 % of its value at VCM.
 - **Common-mode rejection.** 1 V AC common-mode source on both input resistors of the gain -1 network; the input-to-output common-mode gain at 10 mHz.
 - **Supply rejection at the output common mode.** Gain -1 network with its inputs at VCM and 1 V AC on `vdd` or `vss`; rejection of the output common mode at 10 mHz.
@@ -78,11 +79,14 @@ Each check passes or fails; the reward is the fraction of checks that pass. "Eve
 ## Deliverable and eligibility
 
 - Edit `/app/circuit.spi` and implement `.subckt fd_opamp vss ibias vdd vcm vinp vinn voutp voutn`: a transistor-level fully differential op amp with continuous-time common-mode feedback that holds the output common mode at `vcm`. The number of stages, the compensation scheme, internal hierarchy, device count, dimensions and connectivity are your choice and are not scored.
-- Before simulation the grader runs this check; a failure scores 0:
+- Before simulation the grader runs these two checks; a failure of either scores 0:
 
   ```bash
-  check_circuit.py /app/circuit.spi --allow-ideal R C --enforce-sky130-geometry --require-subcircuit fd_opamp vss ibias vdd vcm vinp vinn voutp voutn
+  check_circuit.py /app/circuit.spi --allow-ideal R C --enforce-sky130-geometry --allow-pdk sky130_fd_pr__nfet_01v8 sky130_fd_pr__pfet_01v8 sky130_fd_pr__nfet_01v8_lvt sky130_fd_pr__pfet_01v8_lvt --require-subcircuit fd_opamp vss ibias vdd vcm vinp vinn voutp voutn
+  python3 /app/node_rules.py /app/circuit.spi
   ```
+
+  The first allows only the four 1.8 V MOS devices from the PDK (no MIM capacitors, poly resistors or other PDK cells). The second enforces this task's rules: no ground-named node (`0`, `00`, `0.0`, `gnd`, `gnd!`, any case), R and C written with a literal value and at most an integer `m`, resistors at most 10 Mohm, capacitors at most 100 pF each and 200 pF in all. Where `/opt/analog-arena/SKY130_NETLIST_GUIDE.md` says otherwise (it allows node `0`), these rules override it.
 
 ## Public benches
 
@@ -98,5 +102,6 @@ From `/app`, `ngspice -b testbench/<bench>.spi` runs each at the nominal point (
 - `tb_noise_tt.spi`: input-referred noise density;
 - `tb_thd_tt.spi`: THD at 10 kHz and 1 Vpp per output; with a higher `FREQ`, the full-power bandwidth (1 % THD at the same amplitude);
 - `tb_powerup_tt.spi`: output activity after a 5 ms supply ramp;
+- `tb_vcm_tracking_tt.spi`: the output common-mode error with vcm at 0.8 V and 1.0 V;
 - `tb_surge_tt.spi`: recovery of Vod and the output common mode after +/-50 mV supply steps at 300 kHz;
 - `tb_phase_reversal_tt.spi`: the sign of the output current across the full differential input range.

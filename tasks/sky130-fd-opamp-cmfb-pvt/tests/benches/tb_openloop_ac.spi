@@ -1,15 +1,13 @@
-* FD-07  Open-loop differential gain AVO, GBW, PM, GM; input impedance; RO
-* Spec 3.1.3.1, Fig. 29: VINP = AC 1/2 at 0 degrees, VINN = AC 1/2 at 180
-* degrees, Ad = (Vop - Von)/Vid.  A DC-only differential servo (E sources +
-* L = 1 GH, C = 1 GF to ground, as in Fig. 7) sets the bias, so the amplifier
-* is open-loop at every analysed frequency.  AC 1 mHz .. 10 GHz.
+* FD-07  Open-loop differential gain, GBW, PM, GM; input impedance; RO
+* VINP = AC 1/2 at 0 degrees, VINN = AC 1/2 at 180 degrees, Ad = (Vop - Von)/Vid.
+* A DC-only differential servo (E sources through L = 1 GH, C = 1 GF to ground)
+* sets the bias, so the amplifier is open-loop at every analysed frequency.
 * Copy A (RL/CL load): gain, phase, input admittance i(vapa).
 * Copy B (no load): AC 1/2 A into Vop and out of Von; |Vop - Von| per ampere is
 *   each output's open-loop resistance RO.
-* IOLP/IOLN: DC load current per output of copy A (0 A nominally; +/- for 3.3.3).
+* IOLP/IOLN: DC load current per output of copy A (+/- for the critical-load cases).
 {{SEED_OPTION}}
 .lib "{{MODEL_LIB}}" {{CORNER}}
-{{MC_PARAM}}
 .include "{{DUT_FILE}}"
 .temp {{TEMP}}
 .options reltol=1e-5 abstol=1e-15 vntol=1e-9

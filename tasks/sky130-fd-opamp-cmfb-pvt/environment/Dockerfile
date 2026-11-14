@@ -12,6 +12,7 @@ RUN printf '%s\n' 'set ngbehavior=hsa' > /home/agent/.spiceinit && chown agent:a
 WORKDIR /app
 COPY starter/ /app/
 RUN rm -f /app/Dockerfile \
+    && chmod 0755 /app/node_rules.py \
     && (command -v git >/dev/null 2>&1 || (apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*)) \
     && find /app \( -name '.DS_Store' -o -name '._*' \) -delete \
     && git init /app \
