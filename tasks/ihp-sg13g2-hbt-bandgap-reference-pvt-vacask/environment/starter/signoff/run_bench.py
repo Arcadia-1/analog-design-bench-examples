@@ -46,8 +46,9 @@ def main():
         show("temperature coefficient", m["tc_ppm"], "ppm/C", 1.0, "{:.1f}", ("V",))
         show("line regulation", m["line_mv_per_v"], "mV/V", 1.0, "{:.3f}", ("C",))
         show("load regulation", m["load_mv"], "mV", 1.0, "{:.3f}")
-        show("disabled current", {k: v[0] for k, v in m["off"].items()}, "nA", 1e9, "{:.2f}")
-        show("disabled vref", {k: v[1] for k, v in m["off"].items()}, "V")
+        show("disabled supply current", {k: v[0] for k, v in m["off"].items()}, "nA", 1e9, "{:.2f}")
+        show("disabled enable current", {k: v[1] for k, v in m["off"].items()}, "nA", 1e9, "{:.2f}")
+        show("disabled vref", {k: v[2] for k, v in m["off"].items()}, "V")
         show("op spread (nodesets)", m["nodeset_mv"], "mV", 1.0, "{:.3f}")
     if "ac" in plots and "nz" in plots:
         m = bs.ac_metrics(plots)

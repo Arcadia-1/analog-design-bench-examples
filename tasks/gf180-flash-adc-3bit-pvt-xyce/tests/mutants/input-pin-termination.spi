@@ -1,6 +1,6 @@
-* Mutant: a 1 kohm termination from vin to vss inside the circuit. Conversion is unchanged (the input
-* source is ideal); about 3 mW more comes in through the vin pin.
-* Expected: fails only power_2p5mw (vin pin share).
+* Mutant: a 1 kohm termination from vin to vss inside the circuit. About 3 mW more comes in through
+* the vin pin, and against the bench's 50 ohm source it also pulls vin about 5 % low.
+* Expected: fails power, transfer_codes, sndr_3mhz and sndr_23mhz.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
@@ -68,6 +68,7 @@ RL5 t5 t4 500
 RL6 t6 t5 500
 RL7 t7 t6 500
 RL8 vrefp t7 500
+CVIN vin vss 2p
 CT1 t1 vss 2p
 CT2 t2 vss 2p
 CT3 t3 vss 2p

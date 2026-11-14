@@ -4,6 +4,7 @@
     cd /app
     python3 signoff/run_bench.py testbench/tb_transfer_tt.cir
     python3 signoff/run_bench.py testbench/tb_sine_tt.cir
+    python3 signoff/run_bench.py testbench/tb_nyquist_tt.cir
     python3 signoff/run_bench.py testbench/tb_sine_tt.cir --keep /tmp/sine   # keep the deck, circuit copy and raw file
 
 First the eligibility check of /app/spec/README.md runs on /app/circuit.spi (check_circuit.py, the grader's own copy).
@@ -14,8 +15,6 @@ exits with code 3; a broken rule scores the task 0 in grading. The metrics are c
 them (adc_metrics.py). The public benches cover only the nominal point, so a clean run here is necessary, not
 sufficient.
 """
-import math
-import re
 import sys
 from pathlib import Path
 
@@ -29,7 +28,6 @@ import xyce_signoff  # noqa: E402
 
 CIRCUIT = Path("/app/circuit.spi")
 REQUIRED = ["flash_adc_3bit", "vss", "vdd", "vrefn", "vrefp", "clk", "vin", "b2", "b1", "b0"]
-VREFN_V, LSB_V = 1.0, 0.2
 xyce_signoff.NOT_THE_CIRCUIT.append(f"{HERE}/")
 
 
@@ -67,21 +65,16 @@ def main() -> int:
     print("output_timing:", "ok" if not m["bad_levels"] else
           f"{len(m['bad_levels'])} violations: " + "; ".join(m["bad_levels"][:6]))
     if info["expected"]:
-        want = info["expected"]
-        vin = [float(re.search(r"PWL\(0 (\S+)", text).group(1))]
-        vin += [float(v) for v in re.findall(r"\d+(?:\.\d+)?n \S+ \d+\.2n ([-\d.]+)", text)]
-        for kind, center in (("code_centers", True), ("thresholds_0p3lsb", False)):
+        want, vin = info["expected"], adc_metrics.transfer_inputs(text)
+        for name, kinds in (("transfer_codes", ("center", "edge")), ("overrange_codes", ("overrange",))):
             wrong = [f"conversion {k} vin={vin[k]:.2f} V read {codes[k - adc_metrics.WARMUP]}, want {want[k]}"
                      for k in range(adc_metrics.WARMUP, info["conversions"])
-                     if codes[k - adc_metrics.WARMUP] != want[k]
-                     and (abs((vin[k] - VREFN_V) / LSB_V % 1 - 0.5) < 1e-6) == center]
-            print(f"{kind}:", "ok" if not wrong else "; ".join(wrong))
+                     if codes[k - adc_metrics.WARMUP] != want[k] and adc_metrics.input_kind(vin[k]) in kinds]
+            print(f"{name}:", "ok" if not wrong else "; ".join(wrong))
     if info["tone_bin"]:
         sndr, sfdr = adc_metrics.spectrum(codes, info["tone_bin"])
-        if math.isfinite(sndr):
-            print(f"SNDR {sndr:.2f} dB, SFDR {sfdr:.2f} dB (an ideal quantizer gives 22.89 dB and 25.64 dB on these records)")
-        else:
-            print("SNDR/SFDR undefined: no tone or no error in the record")
+        ideal = "22.89 dB" if info["tone_bin"] == 1 else "20.3 dB"
+        print(f"SNDR {sndr:.2f} dB (tone bin {info['tone_bin']}; an ideal quantizer gives {ideal} on this record)")
     pins = ", ".join(f"{p} {m[f'power_{p}_w'] * 1e3:.3f}" for p in adc_metrics.PINS)
     print(f"power {m['power_w'] * 1e3:.3f} mW (by pin, mW: {pins})")
     return 0

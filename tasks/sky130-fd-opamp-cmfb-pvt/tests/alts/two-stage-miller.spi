@@ -1,0 +1,40 @@
+* Alternative design: fully differential two-stage Miller op amp (no nested loop).
+* Stage 1: NMOS (LVT) differential pair; its PMOS loads take their gate from the
+* resistive and capacitive midpoint of the two stage-1 outputs, so stage 1 sets
+* its own common mode. Stage 2: PMOS common source per side, mirrored from the
+* stage-1 loads. The output sinks are driven only by the common-mode feedback
+* amplifier (five-transistor OTA with a 12 pF dominant-pole capacitor, mirrored
+* into the sinks), so the CMFB acts on the output stage. One Miller capacitor
+* with a series nulling resistor per side.
+.subckt fd_opamp vss ibias vdd vcm vinp vinn voutp voutn
+XB0 ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=12.8 nf=4
+XTAIL tail ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=76.8 nf=24
+XM1 o1n vinp tail vss sky130_fd_pr__nfet_01v8_lvt l=3 w=24 nf=6
+XM2 o1p vinn tail vss sky130_fd_pr__nfet_01v8_lvt l=3 w=24 nf=6
+XM3 o1n c1 vdd vdd sky130_fd_pr__pfet_01v8_lvt l=8 w=384 nf=96
+XM4 o1p c1 vdd vdd sky130_fd_pr__pfet_01v8_lvt l=8 w=384 nf=96
+R1A o1n c1 10meg
+R1B o1p c1 10meg
+C1A o1n c1 1p
+C1B o1p c1 1p
+XM5 voutp o1n vdd vdd sky130_fd_pr__pfet_01v8_lvt l=2 w=336 nf=84
+XM6 voutn o1p vdd vdd sky130_fd_pr__pfet_01v8_lvt l=2 w=336 nf=84
+XC5 voutp cmc vss vss sky130_fd_pr__nfet_01v8 l=6 w=288 nf=72
+XC6 voutn cmc vss vss sky130_fd_pr__nfet_01v8 l=6 w=288 nf=72
+RZP voutp zp 2.5k
+CCP zp o1n 4.5p
+RZN voutn zn 2.5k
+CCN zn o1p 4.5p
+RS1 voutp cms 2meg
+RS2 voutn cms 2meg
+CS1 voutp cms 2p
+CS2 voutn cms 2p
+XE0 te ibias vss vss sky130_fd_pr__nfet_01v8 l=8 w=72 nf=18
+XE1 ea vcm te vss sky130_fd_pr__nfet_01v8_lvt l=1 w=32 nf=8
+XE2 eb cms te vss sky130_fd_pr__nfet_01v8_lvt l=1 w=32 nf=8
+XE3 ea ea vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+XE4 eb ea vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+XE6 cmc eb vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=36 nf=9
+XE5 cmc cmc vss vss sky130_fd_pr__nfet_01v8 l=6 w=192 nf=48
+CEB eb vdd 12p
+.ends fd_opamp

@@ -1,0 +1,49 @@
+// Mutant: a 10 Mohm resistor from vdd into node a: a supply-dependent current in the CTAT branch.
+// Bandgap reference, IHP SG13G2, VACASK netlist.
+// Core: two diode-connected SiGe HBTs (1 and 8 emitters) with equal resistors to
+// vref; a two-stage Miller op amp forces a = b, so the current is dVbe/r3 and
+// vref = Vbe(q1) + (r2/r3)·dVbe. Startup: while vref is below about one NMOS
+// threshold, xst sources a few uA into vref (limited by rsi), which lifts the
+// circuit out of its zero-current state; a 2.7 Mohm leak from b keeps b below a
+// while the HBTs carry little current (about 3 % of vref), so the loop then drives
+// vref up rather than down. The leak also shapes the curvature together with r3.
+subckt bandgap (vdd vss en vref)
+  // enable inverter
+  xinvp (enb en vdd vdd) sg13_hv_pmos w=1u l=0.5u
+  xinvn (enb en vss vss) sg13_hv_nmos w=1u l=0.5u
+  // bias current: diode PMOS and rhigh to vss, cut off when en is low
+  xpb (pb pb vdd vdd) sg13_hv_pmos w=2u l=4u
+  rb (pb nb vss) rhigh w=0.5u l=212u
+  xsb (nb en vss vss) sg13_hv_nmos w=2u l=0.5u
+  xpbo (pb en vdd vdd) sg13_hv_pmos w=1u l=0.5u
+  // stage 1: PMOS pair, NMOS mirror with its diode on the b side
+  xpt (tail pb vdd vdd) sg13_hv_pmos w=2u l=4u m=2
+  xp1 (o1 a tail vdd) sg13_hv_pmos w=40u l=4u
+  xp2 (d2 b tail vdd) sg13_hv_pmos w=40u l=4u
+  xn1 (o1 d2 vss vss) sg13_hv_nmos w=10u l=4u
+  xn2 (d2 d2 vss vss) sg13_hv_nmos w=10u l=4u
+  // stage 2: NMOS common source against a PMOS current source at vref
+  xn5 (vref o1 vss vss) sg13_hv_nmos w=10u l=4u m=14
+  xpu (vref pb vdd vdd) sg13_hv_pmos w=2u l=4u m=10
+  xcc (o1 cz) cap_cmim w=45u l=45u
+  rz (cz vref vss) rppd w=0.5u l=10u
+  // startup: while vref is low, st is high and xst sources a few uA into vref
+  xsp (st enb vdd vdd) sg13_hv_pmos w=0.3u l=100u
+  xsd (st enb vss vss) sg13_hv_nmos w=1u l=0.5u
+  xsn (st vref vss vss) sg13_hv_nmos w=20u l=1u
+  xcs (st vss) cap_cmim w=10u l=10u
+  xst (vdd st si vss) sg13_hv_nmos w=1u l=1u
+  rsi (si vref vss) rhigh w=0.5u l=400u
+  // leak
+  rst (b vss vss) rhigh w=0.5u l=1000u
+  // disabled: o1 low (stage 2 off), vref to vss
+  xdo (o1 enb vss vss) sg13_hv_nmos w=1u l=0.5u
+  xdv (vref enb vss vss) sg13_hv_nmos w=1u l=0.5u
+  // core
+  r1 (vref a vss) rppd w=0.5u l=170u
+  r2 (vref b vss) rppd w=0.5u l=170u
+  r3 (b e2 vss) rppd w=0.5u l=27.5u
+  q1 (a a vss vss) npn13G2 nx=1
+  rsl (vdd a vss) rhigh w=0.5u l=3700u
+  q2 (e2 e2 vss vss) npn13G2 nx=8
+ends

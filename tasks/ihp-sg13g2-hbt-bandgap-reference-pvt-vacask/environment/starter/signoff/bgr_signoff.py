@@ -21,11 +21,12 @@ DUT_PORTS = {"vdd": "vdd", "vss": "0", "en": "en", "vref": "vref"}
 RC_FILE = os.path.join(os.environ.get("IHP_PDK_ROOT", "/opt/ihp/pdk/ihp-sg13g2"), "libs.tech/vacask/.vacaskrc.toml")
 
 # Signoff limits (spec/signoff-rules.md).
+# MOS: rated voltage + 10 % at DC operating points, a further 10 % during transients.
 MOS_RATING = {"sg13_hv_nmos": 3.63, "sg13_hv_pmos": 3.63, "sg13_lv_nmos": 1.32, "sg13_lv_pmos": 1.32}
-HBT_VCE = {"npn13G2": 1.6, "npn13G2l": 1.6, "npn13G2v": 2.5}
-HBT_VBE_FORWARD = 1.0
-HBT_VBE_ON = 0.5
-HBT_VBE_REVERSE = 1.0
+TRANSIENT_ALLOWANCE = 1.10
+# HBT: the safe-operating-area parameters of the IHP SG13G2 ngspice model cards (vbe_max, vbc_max,
+# vce_max), applied at every point.
+HBT_SOA = {"npn13G2": (1.6, 5.1, 1.6), "npn13G2l": (1.6, 5.1, 1.6), "npn13G2v": (1.6, 7.0, 2.2)}
 JUNCTION_FORWARD = 0.4
 RULE_TOLERANCE = 1e-3
 
@@ -134,7 +135,8 @@ def _voltage(plot, node):
 def rule_violations(devices, plot, label, dc):
     """Return the signoff rule violations of `devices` in every point of `plot`.
 
-    `dc` marks operating-point results, where the junction rule also applies.
+    `dc` marks operating-point results, where the junction rule applies and MOS ratings have no
+    transient allowance.
     """
     found = []
 
@@ -146,7 +148,7 @@ def rule_violations(devices, plot, label, dc):
     for path, master, term, _ in devices:
         v = {t: _voltage(plot, node) for t, node in term.items()}
         if master in MOS_RATING:
-            limit = MOS_RATING[master]
+            limit = MOS_RATING[master] * (1.0 if dc else TRANSIENT_ALLOWANCE)
             report(path, "|Vgs|", np.abs(v["g"] - v["s"]), limit)
             report(path, "|Vgd|", np.abs(v["g"] - v["d"]), limit)
             report(path, "|Vds|", np.abs(v["d"] - v["s"]), limit)
@@ -155,20 +157,25 @@ def rule_violations(devices, plot, label, dc):
                 sign = -1.0 if master.endswith("pmos") else 1.0
                 report(path, "source-bulk forward bias", sign * (v["b"] - v["s"]), JUNCTION_FORWARD)
                 report(path, "drain-bulk forward bias", sign * (v["b"] - v["d"]), JUNCTION_FORWARD)
-        elif master in HBT_VCE:
-            conducting = (v["b"] - v["e"]) >= HBT_VBE_ON
-            report(path, "|Vce| while conducting", np.where(conducting, np.abs(v["c"] - v["e"]), 0.0),
-                   HBT_VCE[master])
-            report(path, "Vbe", v["b"] - v["e"], HBT_VBE_FORWARD)
-            report(path, "reverse Vbe", v["e"] - v["b"], HBT_VBE_REVERSE)
+        elif master in HBT_SOA:
+            vbe_max, vbc_max, vce_max = HBT_SOA[master]
+            report(path, "|Vbe|", np.abs(v["b"] - v["e"]), vbe_max)
+            report(path, "|Vbc|", np.abs(v["b"] - v["c"]), vbc_max)
+            report(path, "|Vce|", np.abs(v["c"] - v["e"]), vce_max)
     return found
 
 
 # ---- metrics ----------------------------------------------------------------
 
+def pin_currents(plot):
+    """Currents delivered by the supply and by the enable source (A), per point, each signed."""
+    return -plot.real("vdd:flow(br)"), -plot.real("vensrc:flow(br)")
+
+
 def supply_current(plot):
-    """Current drawn from the supply and the enable source (A), per point."""
-    return -plot.real("vdd:flow(br)") - plot.real("vensrc:flow(br)")
+    """Quiescent current: |current from the supply| + |current from the enable source| (A), per point."""
+    i_vdd, i_en = pin_currents(plot)
+    return np.abs(i_vdd) + np.abs(i_en)
 
 
 def keyed(plot, *sweeps):
@@ -209,8 +216,10 @@ def dc_metrics(plots):
             if other:
                 out["load_mv"][(vs, t)] = float(max(abs(v - o) for o in other) * 1e3)
     off = plots["off"]
-    out["off"] = {k: (float(i), float(v)) for k, i, v in zip(keyed(off, "vsup", "temp"), supply_current(off),
-                                                            off.real("vref"))}
+    i_vdd, i_en = pin_currents(off)
+    # (current from the supply, current from the enable source, vref), each pin metered on its own
+    out["off"] = {k: (float(a), float(b), float(v)) for k, a, b, v in zip(keyed(off, "vsup", "temp"), i_vdd, i_en,
+                                                                       off.real("vref"))}
     lo, hi = plots["nslo"], plots["nshi"]
     out["nodeset_mv"] = {}
     for k, a, b in zip(keyed(lo, "vsup", "temp"), lo.real("vref"), hi.real("vref")):

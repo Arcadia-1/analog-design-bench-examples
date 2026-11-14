@@ -13,7 +13,11 @@ and the report names the run and the device. `/app/signoff/run_bench.py` applies
   an allowed PDK device with its allowed parameters ([`netlist-guide.md`](netlist-guide.md)). Every value is a
   numeric literal with an optional SPICE scale suffix (`f p n u m k meg g t`). No `.param`, `.include`, `.lib`,
   `.model`, analyses or other control lines, no `{...}`, quotes or inline comments, and no node named `0` or `gnd`
-  (use `vss`). `python3 /app/signoff/check_circuit.py /app/circuit.spi` applies this rule.
+  (use `vss`). Ideal elements stand for on-die passives: an ideal `L` is at most 5 nH and an ideal `C` at most
+  50 pF. The p substrate is `vss`: every NMOS bulk and the `bn` terminal of every HBT, resistor and varactor
+  must connect to the `vss` pin (this device set has no isolated p-well). Ideal elements are allowed because the PDK
+  has no simulation model for inductors and transformers; keep supplies, sources and loads out of the circuit.
+  `python3 /app/signoff/check_circuit.py /app/circuit.spi` applies this rule.
 - **Voltage ratings**, at every operating point and at every time point of every transient the benches write out
   (every 0.5 ns or finer):
 
@@ -32,4 +36,5 @@ and the report names the run and the device. `/app/signoff/run_bench.py` applies
 - **Convergence.** A run that does not converge (a timestep too small, an aborted analysis, or an operating point
   that could not be found) runs once more with
   `.options gminsteps=50 srcsteps=50 itl1=1000 itl2=500 itl4=200`. A run that still fails scores as missing
-  measurements.
+  measurements. A run still going after 300 s is stopped, not retried, and scores as missing measurements; runs that
+  would start after 3000 s of grading are not run and score the same way.

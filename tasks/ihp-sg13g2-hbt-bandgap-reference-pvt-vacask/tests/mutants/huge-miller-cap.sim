@@ -2,8 +2,11 @@
 // Bandgap reference, IHP SG13G2, VACASK netlist.
 // Core: two diode-connected SiGe HBTs (1 and 8 emitters) with equal resistors to
 // vref; a two-stage Miller op amp forces a = b, so the current is dVbe/r3 and
-// vref = Vbe(q1) + (r2/r3)·dVbe. A 2.7 Mohm leak from b keeps b below a while
-// the HBTs are off, so the loop always drives vref up from 0.
+// vref = Vbe(q1) + (r2/r3)·dVbe. Startup: while vref is below about one NMOS
+// threshold, xst sources a few uA into vref (limited by rsi), which lifts the
+// circuit out of its zero-current state; a 2.7 Mohm leak from b keeps b below a
+// while the HBTs carry little current (about 3 % of vref), so the loop then drives
+// vref up rather than down. The leak also shapes the curvature together with r3.
 subckt bandgap (vdd vss en vref)
   // enable inverter
   xinvp (enb en vdd vdd) sg13_hv_pmos w=1u l=0.5u
@@ -24,9 +27,17 @@ subckt bandgap (vdd vss en vref)
   xpu (vref pb vdd vdd) sg13_hv_pmos w=2u l=4u m=10
   xcc (o1 cz) cap_cmim w=100u l=100u
   rz (cz vref vss) rppd w=0.5u l=10u
-  // startup leak
+  // startup: while vref is low, st is high and xst sources a few uA into vref
+  xsp (st enb vdd vdd) sg13_hv_pmos w=0.3u l=100u
+  xsd (st enb vss vss) sg13_hv_nmos w=1u l=0.5u
+  xsn (st vref vss vss) sg13_hv_nmos w=20u l=1u
+  xcs (st vss) cap_cmim w=10u l=10u
+  xst (vdd st si vss) sg13_hv_nmos w=1u l=1u
+  rsi (si vref vss) rhigh w=0.5u l=400u
+  // leak
   rst (b vss vss) rhigh w=0.5u l=1000u
-  // disabled: pull vref to vss
+  // disabled: o1 low (stage 2 off), vref to vss
+  xdo (o1 enb vss vss) sg13_hv_nmos w=1u l=0.5u
   xdv (vref enb vss vss) sg13_hv_nmos w=1u l=0.5u
   // core
   r1 (vref a vss) rppd w=0.5u l=170u

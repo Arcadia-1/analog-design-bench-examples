@@ -1,0 +1,62 @@
+* Common-mode and supply rejection at the output common mode, at tt / 1.8 V /
+* 27 C, 10 mHz, in three copies of the gain -1 network.  Copy C: 1 V AC on the
+* common-mode source of both input resistors, prints cm_gain_db (input CM to
+* output CM).  Copies P and N: inputs at VCM and 1 V AC on vdd or vss, print
+* psrr_plus_cm_db and psrr_minus_cm_db (rejection of the output common mode).
+* Run with `ngspice -b testbench/tb_rejection_tt.spi`.
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+.options reltol=1e-6 abstol=1e-16 vntol=1e-10
+.temp 27
+VDD vdd 0 1.8
+VSS vss 0 0
+VCM vcm 0 0.9
+* copy C
+IBIASC vdd ibiasc 10u
+VIC vic vcm DC 0 AC 1
+R1C vic inpc 100k
+R2C inpc onc 100k
+R3C vic innc 100k
+R4C innc opc 100k
+XC vss ibiasc vdd vcmpinc inpc innc opc onc fd_opamp
+RVCMC vcm vcmpinc 1k
+RLPC opc vcm 1meg
+CLPC opc 0 2p
+RLNC onc vcm 1meg
+CLNC onc 0 2p
+* copy P
+VDDP vddp 0 DC 1.8 AC 1
+IBIASP vddp ibiasp 10u
+R1P vcm inpp 100k
+R2P inpp onp 100k
+R3P vcm innp 100k
+R4P innp opp 100k
+XP vss ibiasp vddp vcmpinp inpp innp opp onp fd_opamp
+RVCMP vcm vcmpinp 1k
+RLPP opp vcm 1meg
+CLPP opp 0 2p
+RLNP onp vcm 1meg
+CLNP onp 0 2p
+* copy N
+VSSN vssn 0 DC 0 AC 1
+IBIASN vdd ibiasn 10u
+R1N vcm inpn 100k
+R2N inpn onn 100k
+R3N vcm innn 100k
+R4N innn opn 100k
+XN vssn ibiasn vdd vcmpinn inpn innn opn onn fd_opamp
+RVCMN vcm vcmpinn 1k
+RLPN opn vcm 1meg
+CLPN opn 0 2p
+RLNN onn vcm 1meg
+CLNN onn 0 2p
+.control
+set noaskquit
+ac lin 1 10m 10m
+let cm_gain_db = db(0.5 * (v(opc) + v(onc)))
+let psrr_plus_cm_db = -db(0.5 * (v(opp) + v(onp)))
+let psrr_minus_cm_db = -db(0.5 * (v(opn) + v(onn)))
+print cm_gain_db psrr_plus_cm_db psrr_minus_cm_db
+quit
+.endc
+.end

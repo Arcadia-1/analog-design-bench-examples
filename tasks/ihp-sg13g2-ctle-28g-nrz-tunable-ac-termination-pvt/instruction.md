@@ -2,10 +2,11 @@
 
 Design an active, fully differential continuous-time linear equalizer in IHP
 SG13G2 (SiGe BiCMOS, 3.3 V) for the receiver front end of a 28 Gb/s NRZ link:
-a 50 ohm input matched to 14 GHz, a 2-bit gain code for the low-frequency gain
-and a 2-bit peak code for the 14 GHz gain, with flat in-band response, enough
-bandwidth, a stable bias that tracks `vocm`, and limited power, across
-process, supply and temperature.
+a DC-coupled 50 ohm input matched to 14 GHz (the link's AC-coupling capacitors
+are off-die), a 2-bit gain code for the low-frequency gain and a 2-bit peak code
+for the 14 GHz gain, with flat in-band response, enough bandwidth, a stable
+bias that tracks `vocm`, and limited power, across process, supply,
+temperature and output load.
 
 - **Deliverable:** `/app/circuit.spi`, implementing
   `.subckt ctle_28g vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn`.

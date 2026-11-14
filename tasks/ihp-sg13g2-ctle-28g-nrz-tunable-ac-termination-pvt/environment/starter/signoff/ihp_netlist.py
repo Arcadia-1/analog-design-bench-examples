@@ -34,6 +34,10 @@ REQUIRED = {"mos": {"w", "l"}, "hbt": set(), "res": {"w", "l"}, "cap": {"w", "l"
 VARACTOR_W = (3.74e-6, 9.74e-6)
 VARACTOR_L = (0.3e-6, 0.8e-6)
 MOS_WMIN_PER_FINGER = 0.15e-6
+# Ideal elements stand for on-die passives, so their size is bounded: an inductor no larger than a few spiral turns,
+# a capacitor no larger than a large MIM array (about 0.03 mm2 at 1.5 fF/um2).
+IDEAL_MAX = {"l": 5e-9, "c": 50e-12}
+IDEAL_LIMIT_TEXT = {"l": "5 nH", "c": "50 pF"}
 MOS_LMAX = 10e-6
 CMIM_SIDE = (1.14e-6, 75e-6)
 NX_RANGE = (1, 10)
@@ -126,6 +130,9 @@ def element(tokens):
         value = number(tokens[3])
         if not value > 0:
             raise NetlistError(f"{tokens[0]}: value must be positive")
+        if kind in IDEAL_MAX and value > IDEAL_MAX[kind] * (1 + 1e-9):
+            raise NetlistError(f"{tokens[0]}: an ideal {kind.upper()} may be at most {IDEAL_LIMIT_TEXT[kind]} "
+                               "(an on-die element)")
         return {"name": name, "type": kind, "nodes": nodes, "value": value}
     if kind == "k":
         if len(tokens) != 4:
@@ -177,7 +184,20 @@ def check(text, top, top_pins):
             if e["type"] == "x":
                 check_instance(e, subckts)
     check_no_recursion(subckts, top)
+    check_substrate(subckts, top, top_pins)
     return subckts
+
+
+def check_substrate(subckts, top, top_pins):
+    """The p substrate is the vss pin: every NMOS bulk and every HBT, resistor and varactor substrate terminal
+    (`bn`) must reach the top-level vss net (SG13G2 has no isolated p-well in this device set)."""
+    ground = top_pins[0]
+    for path, model, pins in flatten(subckts, top, "x", top_pins):
+        spec = PDK[model]
+        if spec["kind"] == "mos" and spec["pol"] == "n" and pins["b"] != ground:
+            raise NetlistError(f"{path}: {model} bulk must be {ground} (the substrate)")
+        if "bn" in pins and pins["bn"] != ground:
+            raise NetlistError(f"{path}: {model} substrate terminal bn must be {ground}")
 
 
 def check_instance(e, subckts):

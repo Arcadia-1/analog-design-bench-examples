@@ -1,6 +1,6 @@
-* Mutant: two extra clock drivers each switching 4 pF every cycle (a wasteful clock tree), about 4-5 mW
+* Mutant: two extra clock drivers each switching 4 pF every cycle (a wasteful clock tree), about 5 mW
 * from vdd. Conversion is unchanged.
-* Expected: fails only power_2p5mw.
+* Expected: fails only power.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
@@ -68,6 +68,7 @@ RL5 t5 t4 500
 RL6 t6 t5 500
 RL7 t7 t6 500
 RL8 vrefp t7 500
+CVIN vin vss 2p
 CT1 t1 vss 2p
 CT2 t2 vss 2p
 CT3 t3 vss 2p

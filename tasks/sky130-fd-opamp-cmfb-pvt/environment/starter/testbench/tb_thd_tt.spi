@@ -1,0 +1,36 @@
+* Distortion in the gain -1 network at tt / 1.8 V / 27 C: each input moves
+* 0.5 V peak in antiphase at 10 kHz, so each output swings 1 Vpp (2 Vpp
+* differential).  ngspice's fourier prints the THD of Vod (harmonics 2 to 10)
+* over the last of four periods, in percent: 0.1 % is -60 dB.  Raise FREQ to
+* find the full-power bandwidth (the highest frequency with THD <= 1 %).
+* Run with `ngspice -b testbench/tb_thd_tt.spi`.
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+.param FREQ=10k AMP=0.5
+.options reltol=1e-6 abstol=1e-15 vntol=1e-9 method=gear
+.temp 27
+VDD vdd 0 1.8
+VSS vss 0 0
+IBIAS vdd ibias 10u
+VCM vcm 0 0.9
+VIP vip vcm SIN(0 {AMP} {FREQ} 0 0 0)
+VIN vin vcm SIN(0 {AMP} {FREQ} 0 0 180)
+R1 vip inp 100k
+R2 inp outn 100k
+R3 vin inn 100k
+R4 inn outp 100k
+XDUT vss ibias vdd vcmpin inp inn outp outn fd_opamp
+RVCM vcm vcmpin 1k
+RLP outp vcm 1meg
+CLP outp 0 2p
+RLN outn vcm 1meg
+CLN outn 0 2p
+.control
+set noaskquit
+set nfreqs=10
+tran 0.2u 400u 0 0.2u
+let vod = v(outp) - v(outn)
+fourier 10k vod
+quit
+.endc
+.end

@@ -4,16 +4,16 @@
 
 - the circuit under test is every `.include` outside the PDK (/opt/gf180), the grader's own files and the public
   signoff folder. It must pass check_circuit.py. It is simulated as rewritten here: `m=K` on a local subcircuit
-  instance becomes K parallel copies, and every MOS that leaves out its diffusion geometry gets the GF180MCU xschem
-  values (`ad = as = w * 0.18u`, `pd = ps = 2 * (w + 0.18u)`);
+  instance becomes K parallel copies, and every MOS gets the GF180MCU xschem diffusion geometry
+  (`ad = as = w * 0.18u`, `pd = ps = 2 * (w + 0.18u)`; the netlist may not set it);
 - Xyce runs once in a fresh folder and writes every node voltage and source current to a binary raw file. A run that
   fails runs once more with gear integration;
 - from the raw file: no MOS may see more than 4.0 V gate-source, gate-drain or drain-source, or 5.5 V gate-bulk, at
   any time point; no source-bulk or drain-bulk junction may be forward biased by more than 0.4 V at the operating
-  point (t = 0); and in every power window the energy stored in the circuit's capacitors (ideal C, plus the oxide
-  capacitance of every MOS whose channel carries no current) may not end the window more than 5 % of the energy the
-  bench's sources deliver in it (plus 20 nA x supply x window length, plus 0.5 fJ) below the lowest level it had
-  since the start of the run.
+  point (t = 0); and in every power window the energy stored in the circuit (every ideal C, the gate oxide of every
+  MOS and the source and drain junctions of every MOS) may not end the window more than 5 % of the energy the
+  bench's sources deliver in it (plus 20 nA x supply x window length, plus 0.5 fJ) below its level at the window
+  start, so a reservoir charged during the unmetered warm-up and spent in the window is caught.
 
 The result is a dict: `names` and `data` (the raw file's variables and points), `rule` (the first broken rule, or
 None), `error` (the run did not complete), and `log`. Standard library and NumPy.
@@ -40,7 +40,9 @@ DIFFUSION_M = 0.18e-6
 RATINGS = {"vgs": 4.0, "vgd": 4.0, "vds": 4.0, "vgb": 5.5}  # 3.63 V maximum operating voltage + 10 %
 JUNCTION_FORWARD_MAX = 0.4
 COX = 3.9 * 8.854e-12 / 8e-9  # F/m^2: the 3.3 V devices' toxe = 8 nm
-ENERGY_FRACTION = 0.05
+# junction capacitance per area (F/m^2) and per perimeter (F/m) of the 3.3 V devices (cjs, cjsws in their model cards)
+JUNCTION_C = {"nfet_03v3": (0.968e-3, 1.566e-10), "pfet_03v3": (0.943e-3, 1.508e-10)}
+ENERGY_FRACTION = 0.02
 ENERGY_FLOOR_CURRENT = 20e-9
 ENERGY_FLOOR = 0.5e-15
 GROUND = {"0", "gnd"}
@@ -75,7 +77,8 @@ def rewrite(circuit_text: str) -> str:
             if w:
                 geometry = {"ad": w * DIFFUSION_M, "as": w * DIFFUSION_M,
                             "pd": 2 * (w + DIFFUSION_M), "ps": 2 * (w + DIFFUSION_M)}
-                line = " ".join([line] + [f"{k}={v:.6g}" for k, v in geometry.items() if k not in params])
+                line = " ".join([w_ for w_ in line.split() if w_.split("=", 1)[0].lower() not in geometry]
+                                + [f"{k}={v:.6g}" for k, v in geometry.items()])
         out.append(line)
     return "\n".join(out) + "\n"
 
@@ -155,7 +158,7 @@ def flatten(circuit_text: str, deck_text: str) -> dict:
                 w, l = cc.spice_number(params["w"]), cc.spice_number(params["l"])
                 m = cc.spice_number(params.get("m", "1"))
                 mos.append({"path": path, "model": plain[5].lower(), "nodes": [node(n) for n in plain[1:5]],
-                            "area": w * l * m})
+                            "area": w * l * m, "w": w, "m": m})
             elif kind == "c":
                 caps.append({"path": path, "nodes": [node(n) for n in plain[1:3]],
                              "c": cc.spice_number(plain[3]) * cc.spice_number(params.get("m", "1"))})
@@ -202,8 +205,21 @@ def sources(deck_text: str) -> list[dict]:
 
 # ---- rules ----------------------------------------------------------------------------------------------------------
 
+def xyce_name(node: str) -> str:
+    """The name Xyce's raw file gives a hierarchical node: an instance segment that ends in 0 and is followed by
+    another instance segment is printed with # for that 0 (XADC:XB0:XA:NX is written XADC:XB#:XA:NX; XADC:XB0:PZ is
+    written as it is). check_circuit.py refuses # in names, so the mapping is one to one."""
+    parts = node.upper().split(":")
+    for i in range(len(parts) - 2):
+        if parts[i].endswith("0"):
+            parts[i] = parts[i][:-1] + "#"
+    return ":".join(parts)
+
+
 class Waves:
     def __init__(self, names, data):
+        if len(set(names)) != len(names):
+            raise ValueError("the raw file names a variable twice")
         self.index = {n: i for i, n in enumerate(names)}
         self.data = data
         self.t = data[:, 0]
@@ -211,16 +227,10 @@ class Waves:
     def v(self, node):
         if node == "0":
             return np.zeros_like(self.t)
-        key = node.upper()
-        if key not in self.index:
-            # Xyce's raw writer prints some hierarchical names with a digit run replaced by '#'
-            # (XADC:XB0:XA:NX is written XADC:XB#:XA:NX); accept such a name when it is the only one that fits.
-            fits = [n for n in self.index if "#" in n
-                    and re.fullmatch(re.escape(n).replace("\\#", "#").replace("#", r"\d+"), key)]
-            if len(fits) != 1:
-                raise KeyError(f"node {node} not in the raw file")
-            self.index[key] = self.index[fits[0]]
-        return self.data[:, self.index[key]]
+        for key in (node.upper(), xyce_name(node)):
+            if key in self.index:
+                return self.data[:, self.index[key]]
+        raise KeyError(f"node {node} not in the raw file")
 
     def i(self, source):
         return self.data[:, self.index[f"{source.upper()}#BRANCH"]]
@@ -257,38 +267,20 @@ def rating_violation(waves: Waves, mos: list[dict]) -> str | None:
 
 
 def stored_energy(waves: Waves, flat: dict) -> np.ndarray:
+    """Energy stored in the circuit at every time point: 1/2 C v^2 of every ideal capacitor, 1/2 Cox W L m v^2 of
+    every MOS gate oxide (v from gate to the mean of source and drain), and 1/2 (Cj A + Cjsw P) m v^2 of every
+    source and drain junction (v from the diffusion to the bulk, A and P the signoff geometry). Linear capacitances:
+    the junctions' depletion makes the true value smaller, so this counts at least the stored energy."""
     energy = np.zeros_like(waves.t)
     for cap in flat["caps"]:
         a, b = (waves.v(n) for n in cap["nodes"])
         energy += 0.5 * cap["c"] * (a - b) ** 2
-    parent = {}
-
-    def find(n):
-        while parent.get(n, n) != n:
-            n = parent[n]
-        return n
-
-    touches = {}
-    for a, b in flat["res"]:
-        parent[find(a)] = find(b)
-        for n in (a, b):
-            touches[n] = touches.get(n, 0) + 1
     for dev in flat["mos"]:
-        for n in dev["nodes"]:
-            touches[n] = touches.get(n, 0) + 1
-    for cap in flat["caps"]:
-        for n in cap["nodes"]:
-            touches[n] = touches.get(n, 0) + 1
-
-    def dangling(n):
-        return n not in flat["outside"] and touches.get(n, 0) <= 1
-
-    for dev in flat["mos"]:
-        d, g, s, b = dev["nodes"]
-        # a MOS capacitor carries no channel current; its gate oxide stores 1/2 Cox W L (vg - vchannel)^2
-        if d == s or dangling(d) or dangling(s) or g == s or find(d) == find(s):
-            channel = s if not dangling(s) else d
-            energy += 0.5 * COX * dev["area"] * (waves.v(g) - waves.v(channel)) ** 2
+        d, g, s, b = (waves.v(n) for n in dev["nodes"])
+        energy += 0.5 * COX * dev["area"] * (g - 0.5 * (d + s)) ** 2
+        cj, cjsw = JUNCTION_C[dev["model"]]
+        junction = (cj * dev["w"] * DIFFUSION_M + cjsw * 2 * (dev["w"] + DIFFUSION_M)) * dev["m"]
+        energy += 0.5 * junction * ((d - b) ** 2 + (s - b) ** 2)
     return energy
 
 
@@ -298,9 +290,9 @@ def energy_violation(waves: Waves, flat: dict, srcs: list[dict], windows: list[t
     supply = max([abs(s["dc"]) for s in srcs if s["dc"] is not None] or [3.3])
     for a, b in windows:
         a, b = max(a, t[1]), min(b, t[-1])
-        before = t <= a
-        low = min(float(energy[before].min()) if before.any() else np.inf, _interp(t, energy, a))
-        release = low - _interp(t, energy, b)
+        # release is measured against the stored energy at the window start: everything stored by then (including
+        # anything charged during the unmetered warm-up) is already present, so any of it spent in the window counts.
+        release = _interp(t, energy, a) - _interp(t, energy, b)
         delivered = 0.0
         for src in srcs:
             p = -(waves.v(src["nodes"][0]) - waves.v(src["nodes"][1])) * waves.i(src["name"])
@@ -310,7 +302,7 @@ def energy_violation(waves: Waves, flat: dict, srcs: list[dict], windows: list[t
             return (f"stored energy: window {a:.4g}..{b:.4g} s: capacitors inside the circuit released "
                     f"{release * 1e15:.4g} fJ, more than {ENERGY_FRACTION * 100:g} % of the {delivered * 1e15:.4g} fJ "
                     f"the bench's sources delivered plus {(allowed - ENERGY_FRACTION * delivered) * 1e15:.3g} fJ; the "
-                    "circuit ran on charge stored at the operating point")
+                    "circuit ran on charge stored before the window")
     return None
 
 

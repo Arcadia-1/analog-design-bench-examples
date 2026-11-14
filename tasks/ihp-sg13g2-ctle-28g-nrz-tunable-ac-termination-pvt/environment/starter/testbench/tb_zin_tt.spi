@@ -1,5 +1,6 @@
 * Public: CTLE single-ended input impedance and return loss at tt, 3.3 V, 27 C, gain=00, peak=00, by a 1 A AC
-* current into vinp with vinn terminated in 50 ohm to the vocm pin. Set excite_p=0 and excite_n=1 to measure vinn.
+* current straight into vinp (no link capacitor) with vinn terminated in 50 ohm to the vocm pin; 1 Gohm from each
+* input to vocm keeps the operating point defined. Set excite_p=0 and excite_n=1 to measure vinn.
 .lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib" mos_tt
 .lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerMOShv.lib" mos_tt
 .lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerHBT.lib" hbt_typ
@@ -14,6 +15,7 @@
 .param code_g1=0
 .param code_p0=0
 .param code_p1=0
+.param cload=200f
 .param excite_p=1
 .param excite_n=0
 VSS vss 0 0
@@ -36,8 +38,8 @@ RPB0 spb0 peak_b0 1k
 VPB1 spb1 vss {code_p1*supply}
 RPB1 spb1 peak_b1 1k
 XDUT vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn ctle_28g
-CLP voutp vss 200f
-CLN voutn vss 200f
+CLP voutp vss {cload}
+CLN voutn vss {cload}
 
 .control
 ac dec 20 100 40g

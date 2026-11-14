@@ -1,7 +1,6 @@
-* Plainest textbook design: ladder, seven StrongARM comparators, and the encoder driven straight from
-* the comparator outputs (no latch to hold each decision through the precharge phase). The outputs
-* follow the comparators back to their precharge state half a period after each edge.
-* Expected: fails the nominal transfer gate (every code reads wrong at 19 ns).
+* Mutant: the hold latches are left out and the encoder is driven straight from the comparators, so the
+* outputs return to the precharge state half a period after each edge, before the read.
+* Expected: fails every check (power is not credited once transfer_codes fails); reward 0.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
@@ -69,6 +68,7 @@ RL5 t5 t4 500
 RL6 t6 t5 500
 RL7 t7 t6 500
 RL8 vrefp t7 500
+CVIN vin vss 2p
 CT1 t1 vss 2p
 CT2 t2 vss 2p
 CT3 t3 vss 2p

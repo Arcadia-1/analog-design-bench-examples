@@ -1,0 +1,8 @@
+// Mutant: not a bandgap. A resistor divider from vdd, switched on by en, sized for vref = 1.07 V at 3.3 V.
+subckt bandgap (vdd vss en vref)
+  xinvp (enb en vdd vdd) sg13_hv_pmos w=1u l=0.5u
+  xinvn (enb en vss vss) sg13_hv_nmos w=1u l=0.5u
+  xsw (top enb vdd vdd) sg13_hv_pmos w=4u l=0.5u
+  rt (top vref vss) rppd w=0.5u l=417u
+  rb (vref vss vss) rppd w=0.5u l=200u
+ends

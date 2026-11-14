@@ -13,7 +13,8 @@ VRN vrefn_s vss 1.0
 RRN vrefn_s vrefn 10
 VCK clk_s vss PULSE(0 3.3 10n 0.3n 0.3n 9.4n 20n)
 RCK clk_s clk 50
-VSIG vin vss SIN(1.8 0.72 3.125Meg 0 0 351)
+VSIG vin_s vss SIN(1.8 0.72 3.125Meg 0 0 351)
+RSIG vin_s vin 50
 XADC vss vdd vrefn vrefp clk vin b2 b1 b0 flash_adc_3bit
 CB2 b2 vss 50f
 CB1 b1 vss 50f

@@ -25,21 +25,11 @@ DESIGN = Path("/app/circuit.spi")
 BENCHES = HERE / "benches"
 
 # ---- public contract (spec/README.md) ----
-LSB_V = 0.2
-VREFN_V = 1.0
-SNDR_MIN_DB = 22.0
-SFDR_MIN_DB = 24.5
+SNDR_3MHZ_MIN_DB = 22.0
+SNDR_23MHZ_MIN_DB = 19.0
 POWER_MAX_W = 2.5e-3
 
-# Hidden transfer sequence (tb_transfer.cir): input of every conversion and its expected code.
-TRANSFER = (
-    (1.10, 0), (2.50, 7),
-    (1.70, 3), (1.90, 4), (1.74, 3), (1.10, 0), (1.86, 4), (2.50, 7), (1.14, 0), (1.50, 2), (1.26, 1), (2.30, 6),
-    (2.34, 6), (1.30, 1), (2.46, 7), (2.10, 5), (1.54, 2), (1.10, 0), (1.66, 3), (2.50, 7), (2.14, 5), (1.50, 2),
-    (2.26, 6), (1.90, 4), (1.34, 1), (2.50, 7), (1.46, 2), (1.30, 1), (1.94, 4), (2.50, 7), (1.10, 0), (2.06, 5),
-    (1.70, 3),
-)
-TRANSFER_POINTS = (  # (corner, vdd, temperature); the first one is the gate
+TRANSFER_POINTS = (  # (corner, vdd, temperature)
     ("typical", 3.30, 27), ("ss", 3.00, -40), ("ss", 3.00, 125), ("ff", 3.60, -40), ("ff", 3.60, 125),
     ("sf", 3.00, -40), ("fs", 3.60, 125),
 )
@@ -47,8 +37,8 @@ SINE_POINTS = (
     ("typical", 3.30, 27), ("ss", 3.00, -40), ("ff", 3.60, 125), ("sf", 3.60, 125), ("fs", 3.00, -40),
 )
 CASES = [{"bench": "transfer", "corner": c, "vdd": v, "temp": t} for c, v, t in TRANSFER_POINTS] + \
-        [{"bench": "sine", "corner": c, "vdd": v, "temp": t} for c, v, t in SINE_POINTS]
-CHECKS = ("code_centers", "thresholds_0p3lsb", "output_timing", "sndr_22db", "sfdr_24p5db", "power_2p5mw")
+        [{"bench": b, "corner": c, "vdd": v, "temp": t} for b in ("sine", "nyquist") for c, v, t in SINE_POINTS]
+CHECKS = ("transfer_codes", "overrange_codes", "output_timing", "sndr_3mhz", "sndr_23mhz", "power")
 
 
 def label(case: dict) -> str:
@@ -85,59 +75,59 @@ def run_case(case: dict) -> dict:
     except (ValueError, KeyError, IndexError) as error:
         return {**row, "error": f"missing waveform: {error}"}
     if case["bench"] == "transfer":
-        row["errors"] = [(k, TRANSFER[k][0], TRANSFER[k][1], code)
-                         for k, code in zip(range(adc_metrics.WARMUP, len(TRANSFER)), row["codes"])
-                         if code != TRANSFER[k][1]]
+        inputs = adc_metrics.transfer_inputs(text)
+        row["errors"] = [(k, inputs[k], info["expected"][k], code, adc_metrics.input_kind(inputs[k]))
+                         for k, code in zip(range(adc_metrics.WARMUP, info["conversions"]), row["codes"])
+                         if code != info["expected"][k]]
     else:
         row["sndr_db"], row["sfdr_db"] = adc_metrics.spectrum(row["codes"], info["tone_bin"])
     return row
 
 
-def is_center(volts: float) -> bool:
-    return abs((volts - VREFN_V) / LSB_V % 1 - 0.5) < 1e-6
-
-
 def score(rows: list[dict]) -> list[tuple[str, bool, str]]:
-    failed = [r for r in rows if "error" in r]
-    done = [r for r in rows if "error" not in r]
-    complete = not failed and len(done) == len(CASES)
-    transfer = [r for r in done if r["bench"] == "transfer"]
-    sine = [r for r in done if r["bench"] == "sine"]
-    note = "" if complete else f" [incomplete: {'; '.join(r['label'] + ': ' + r['error'] for r in failed) or 'runs missing'}]"
+    """Each check passes only when every run it uses completed and met the limit."""
+    def runs(*benches):
+        used = [r for r in rows if r["bench"] in benches]
+        failed = [r for r in used if "error" in r]
+        done = [r for r in used if "error" not in r]
+        note = "" if not failed and len(used) == sum(c["bench"] in benches for c in CASES) else \
+            f" [incomplete: {'; '.join(r['label'] + ': ' + r['error'] for r in failed) or 'runs missing'}]"
+        return done, note
 
-    def errors_of(kind):
-        out = []
-        for r in transfer:
-            for k, volts, want, got in r["errors"]:
-                if is_center(volts) == (kind == "center"):
-                    out.append(f"{r['label']}: conversion {k} vin={volts:.2f} V read {got}, want {want}")
-        return out
+    def wrong(kinds):
+        done, note = runs("transfer")
+        out = [f"{r['label']}: conversion {k} vin={v:.2f} V read {got}, want {want}"
+               for r in done for k, v, want, got, kind in r["errors"] if kind in kinds]
+        return out, note
 
-    center_err, edge_err = errors_of("center"), errors_of("edge")
-    level_err = [f"{r['label']}: {msg}" for r in done for msg in r["bad_levels"]]
-    sndr = min(sine, key=lambda r: r["sndr_db"], default=None)
-    sfdr = min(sine, key=lambda r: r["sfdr_db"], default=None)
+    checks = []
+    err, note = wrong(("center", "edge"))
+    transfer_ok = not err and not note
+    checks.append(("transfer_codes", transfer_ok, (f"{len(err)} wrong: " + "; ".join(err[:4]) if err else
+                   "every code center and every input 0.3 LSB from a threshold converts correctly") + note))
+    err, note = wrong(("overrange",))
+    checks.append(("overrange_codes", not err and not note, (f"{len(err)} wrong: " + "; ".join(err[:4]) if err else
+                   "inputs below vrefn read 0 and above vrefp read 7") + note))
+    done, note = runs("transfer", "sine", "nyquist")
+    lv = [f"{r['label']}: {m}" for r in done for m in r["bad_levels"]]
+    lv += [f"{r['label']}: output {bit} never toggles" for r in done for bit in r["stuck_bits"]]
+    checks.append(("output_timing", not lv and not note, (f"{len(lv)} violations: " + "; ".join(lv[:4]) if lv else
+                   "every output toggles and is valid from 3 ns to 19 ns after every edge") + note))
+    for name, bench, limit in (("sndr_3mhz", "sine", SNDR_3MHZ_MIN_DB), ("sndr_23mhz", "nyquist", SNDR_23MHZ_MIN_DB)):
+        done, note = runs(bench)
+        worst = min(done, key=lambda r: r["sndr_db"], default=None)
+        msg = f"worst {worst['sndr_db']:.2f} dB at {worst['label']} (>= {limit:g})" if worst else "no result"
+        checks.append((name, bool(worst) and worst["sndr_db"] >= limit and not note, msg + note))
+    done, note = runs("transfer", "sine", "nyquist")
     power = max(done, key=lambda r: r["power_w"], default=None)
-
-    def worst(row, key, unit, scale=1.0):
-        return f"worst {row[key] * scale:.3f} {unit} at {row['label']}" if row else "no result"
-
-    power_msg = "no result" if not power else (
-        worst(power, "power_w", "mW", 1e3) + f" (<= {POWER_MAX_W * 1e3:g}); by pin: "
+    within = bool(power) and power["power_w"] <= POWER_MAX_W
+    msg = "no result" if not power else (
+        f"worst {power['power_w'] * 1e3:.3f} mW at {power['label']} (<= {POWER_MAX_W * 1e3:g}); by pin: "
         + ", ".join(f"{p} {power[f'power_{p}_w'] * 1e3:.3f}" for p in adc_metrics.PINS))
-    checks = [
-        ("code_centers", not center_err,
-         f"{len(center_err)} wrong: " + "; ".join(center_err[:4]) if center_err else "every code center converts correctly"),
-        ("thresholds_0p3lsb", not edge_err,
-         f"{len(edge_err)} wrong: " + "; ".join(edge_err[:4]) if edge_err else "every input 0.3 LSB from a threshold converts correctly"),
-        ("output_timing", not level_err,
-         f"{len(level_err)} violations: " + "; ".join(level_err[:4]) if level_err else "every output valid from 3 ns to 19 ns after every edge"),
-        ("sndr_22db", bool(sndr) and sndr["sndr_db"] >= SNDR_MIN_DB, worst(sndr, "sndr_db", "dB") + f" (>= {SNDR_MIN_DB:g})"),
-        ("sfdr_24p5db", bool(sfdr) and sfdr["sfdr_db"] >= SFDR_MIN_DB, worst(sfdr, "sfdr_db", "dB") + f" (>= {SFDR_MIN_DB:g})"),
-        ("power_2p5mw", bool(power) and power["power_w"] <= POWER_MAX_W, power_msg),
-    ]
-    # a check passes only when every run it depends on completed
-    return [(name, ok and complete, message + note) for name, ok, message in checks]
+    if not transfer_ok:
+        msg += "; not scored because transfer_codes failed (a non-converting design earns no power credit)"
+    checks.append(("power", within and not note and transfer_ok, msg + note))
+    return checks
 
 
 def write_results(checks: list[tuple[str, bool, str]], rules: list[str]) -> float:
@@ -167,29 +157,13 @@ def main() -> int:
     started = time.monotonic()
     cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
     workers = max(1, min(4, cpus))
-    rows: list[dict] = []
-    gate_failed = None
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = [pool.submit(run_case, case) for case in CASES]  # the gate (nominal transfer) is CASES[0]
-        gate = futures[0].result()
-        rows.append(gate)
-        if "error" in gate or gate["errors"]:
-            gate_failed = gate.get("error") or f"{len(gate['errors'])} wrong codes"
-            for f in futures[1:]:
-                f.cancel()
-        for f in futures[1:]:
-            if not f.cancelled():
-                rows.append(f.result())
+        rows = list(pool.map(run_case, CASES))
     rules = [f"{r['label']}: {r['rule']}" for r in rows if r.get("rule")]
-    if gate_failed:
-        checks = [(name, False, f"blocked: nominal transfer run failed ({gate_failed})") for name in CHECKS]
-    else:
-        checks = score(rows)
-    write_results(checks, rules)
+    write_results(score(rows), rules)
     elapsed = time.monotonic() - started
-    runs = [{k: v for k, v in r.items() if k not in ("names", "data")} for r in rows]
     (OUTPUT / "summary.json").write_text(json.dumps({"task": TASK_ID, "wall_clock_s": round(elapsed, 1),
-                                                     "workers": workers, "runs": runs}, indent=1, default=str) + "\n")
+                                                     "workers": workers, "runs": rows}, indent=1, default=str) + "\n")
     print(f"{len(rows)} Xyce runs, {workers} workers, {elapsed:.1f} s")
     return 0
 

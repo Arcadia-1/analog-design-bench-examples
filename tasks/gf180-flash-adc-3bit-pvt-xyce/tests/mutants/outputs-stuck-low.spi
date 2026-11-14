@@ -1,0 +1,10 @@
+* Not a flash ADC: the three outputs are tied low (through a small resistor to vss) and nothing converts.
+* It used to pass output_timing (always valid-low) and power (draws almost nothing). Now output_timing requires
+* the outputs to toggle and power is not scored unless transfer_codes passes.
+* Expected: fails every check; reward 0.
+
+.subckt flash_adc_3bit vss vdd vrefn vrefp clk vin b2 b1 b0
+RB2 b2 vss 1k
+RB1 b1 vss 1k
+RB0 b0 vss 1k
+.ends flash_adc_3bit

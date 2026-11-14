@@ -3,6 +3,8 @@
 
 Every check comes from an AC analysis, a DC operating point or the disturbance transient; the definitions are in
 /app/spec/README.md. Every ngspice run goes through ihp_signoff, so the task's IHP SG13G2 signoff rules apply.
+Each check is scored on its own over every graded point: it fails only where its own measurements fail a limit or
+could not be obtained.
 """
 
 import json
@@ -23,15 +25,19 @@ OUTPUT = Path("/logs/verifier")
 MODELS = "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models"
 JOBS = 4  # the verifier container has 4 CPUs; each ngspice run is single-threaded
 
-# (name, corner, supply, temperature). The nominal point runs first and gates the rest.
-NOMINAL_PVT = ("tt_3.30v_27c", "tt", 3.30, 27)
+# (name, corner, supply, temperature, output load F). The nominal point runs first (for cost only).
+LOAD_F = 200e-15
+NOMINAL_PVT = ("tt_3.30v_27c", "tt", 3.30, 27, LOAD_F)
 CORNER_PVT = tuple(
-    (f"{corner}_{supply:.2f}v_{temperature}c", corner, supply, temperature)
+    (f"{corner}_{supply:.2f}v_{temperature}c", corner, supply, temperature, LOAD_F)
     for corner in ("tt", "ss", "ff", "sf", "fs")
     for supply in (2.97, 3.63)
-    for temperature in (27, 125)
+    for temperature in (0, 125)
 )
-PVT = (NOMINAL_PVT,) + CORNER_PVT
+# Unpublished points of the declared output-load range (180-220 fF per output), at the nominal corner, supply and
+# temperature.
+LOAD_PVT = tuple((f"tt_3.30v_27c_{round(c * 1e15)}ff", "tt", 3.30, 27, c) for c in (186e-15, 217e-15))
+PVT = (NOMINAL_PVT,) + CORNER_PVT + LOAD_PVT
 # Library sections per corner: MOS (lv and hv, varactor), HBT, resistors, MIM capacitors.
 CORNER_LIBS = {
     "tt": ("mos_tt", "hbt_typ", "res_typ", "cap_typ"),
@@ -47,32 +53,34 @@ CODES = tuple(
     for pb1 in (0, 1) for pb0 in (0, 1)
 )
 ZIN_CODE = next(c for c in CODES if c[0] == "g00_p00")
-# Disturbance transients: (code, common-mode step V, differential pulse A, pulse time).
+# Disturbance transients: (code, load-return step V, differential pulse A, its time, common-mode pulse A per output,
+# its time).
 KICKS = (
-    ("g00_p00", -0.1, -1e-3, "1.5u"),
-    ("g11_p11", -0.1, 1e-3, "2u"),
+    ("g00_p00", -0.1, -1e-3, "1.5u", -1e-3, "0.6u"),
+    ("g11_p11", -0.1, 1e-3, "2u", 1e-3, "0.4u"),
 )
 
 CODE_ORDER = ("00", "01", "10", "11")
 GAIN_TOLERANCE_DB = 1.5
-PEAK_TOLERANCE_DB = 2.0
+PEAK_TOLERANCE_DB = 1.5
 GAIN_TARGET_DB = {"00": -12.0, "01": -10.0, "10": -8.0, "11": -6.0}
 PEAK_TARGET_DB = {"00": 0.0, "01": 2.0, "10": 4.0, "11": 6.0}
 MIN_CODE_STEP_DB = 1.0
 INBAND_EXCESS_MAX_DB = 1.0
-INBAND_DROOP_MAX_DB = 6.0
+INBAND_DROOP_MAX_DB = 3.0
 FORWARD_REVERSE_MIN_DB = 15.0
 ABOVE_NYQUIST_EXCESS_MAX_DB = 3.0
 BW_FLOOR_HZ = 25.0e9
 LOW_CORNER_MAX_HZ = 20e3
 LOW_CORNER_FLOOR_DB = 3.0
-DC_TRANSFER_MAX_V = 1e-3
 ZIN_TARGET_OHM = 50.0
 ZIN_TOLERANCE_OHM = 10.0  # +-20 %
 RETURN_LOSS_MAX_DB = -15.0
 CM_ERROR_MAX_V = 0.075
 OFFSET_MAX_V = 0.005
 POWER_MAX_W = 0.060
+VOCM_PIN_MAX_A = 100e-6  # vocm is a reference, not a supply: DC current into or out of the pin
+DEADLINE_S = 3000  # verifier budget (the Harbor verifier timeout is 3600 s); later runs score as missing
 SWING_MARGIN_V = 0.25
 VOCM_TRACK_MIN_V = 0.009  # output common-mode change for the bench's +10 mV vocm step
 CM_KICK_PP_MAX_V = 1e-3
@@ -81,8 +89,9 @@ DM_KICK_ABS_MAX_V = OFFSET_MAX_V
 ROUNDOFF = 1e-12  # absorbs only floating-point roundoff of derived sums and differences
 
 METRICS = (
-    "output_common_mode_v", "output_diff_v", "output_offset_v", "vocm_pin_v", "power_w", "other_source_power_w",
-    "voutp_v", "voutn_v", "dc_drive_diff_v", "vocm_step_cm_v",
+    "output_common_mode_v", "output_diff_v", "output_offset_v", "vocm_pin_v", "vocm_pin_i", "power_w",
+    "other_source_power_w",
+    "voutp_v", "voutn_v", "vocm_step_cm_v",
     "g_lf_db", "g_lf_re", "g_14_db", "inband_peak_db", "inband_min_db", "hf_peak_db", "gain_at_sweep_stop",
     "gain_start_db", "sdd11_max_db", "fwd_rev_min_db",
 )
@@ -149,6 +158,8 @@ def parse_scalars(output, names):
 
 def run_deck(deck, replacements, names):
     """Run one bench under the signoff rules and return its published scalars."""
+    if time.monotonic() - STARTED > DEADLINE_S:
+        raise SimulationError(f"not run: verifier deadline of {DEADLINE_S} s reached")
     source = deck.read_text()
     for old, new in replacements.items():
         if source.count(old) != 1:
@@ -171,7 +182,7 @@ def run_deck(deck, replacements, names):
 
 
 def substitutions(pvt, code):
-    _pname, corner, supply, temperature = pvt
+    _pname, corner, supply, temperature, load = pvt
     _cname, gb1, gb0, pb1, pb0 = code
     mos, hbt, res, cap = CORNER_LIBS[corner]
     return {
@@ -186,6 +197,7 @@ def substitutions(pvt, code):
         ".param code_g1=0\n": f".param code_g1={gb1}\n",
         ".param code_p0=0\n": f".param code_p0={pb0}\n",
         ".param code_p1=0\n": f".param code_p1={pb1}\n",
+        ".param cload=200f\n": f".param cload={load:.12g}\n",
     }
 
 
@@ -203,7 +215,7 @@ def run_case(pvt, code):
             raise SimulationError(f"missing measurements {', '.join(missing)}")
         row.update({key: value for key, value in values.items() if key in names})
     except (OSError, SimulationError) as error:
-        row["error"] = str(error)
+        row["ac_error"] = str(error)
     return row
 
 
@@ -225,12 +237,14 @@ def run_zin_case(pvt, pin):
 
 
 def run_kick_case(pvt, kick):
-    name, cm, dm, at = kick
+    name, cm, dm, at, cmi, cmt = kick
     replacements = substitutions(pvt, code_by_name(name))
     replacements.update({
         ".param kick_cm=0.1\n": f".param kick_cm={cm:.12g}\n",
         ".param kick_dm=1m\n": f".param kick_dm={dm:.12g}\n",
         ".param kick_t=1u\n": f".param kick_t={at}\n",
+        ".param kick_cmi=1m\n": f".param kick_cmi={cmi:.12g}\n",
+        ".param kick_cmt=0.5u\n": f".param kick_cmt={cmt}\n",
     })
     try:
         values = run_deck(HERE / "benches" / "tb_kick.spi", replacements, set(KICK_METRICS))
@@ -242,11 +256,13 @@ def run_kick_case(pvt, kick):
         return {"error": f"{name} disturbance transient: {error}"}
 
 
-def merge_into_row(row, values):
+def merge_into_row(row, values, kind):
+    """Add a zin or kick result to its AC row; a failed run is recorded as that kind's error."""
     if row is None:
         return
     if "error" in values:
-        row["error"] = "; ".join(filter(None, (row.get("error"), values["error"])))
+        key = f"{kind}_error"
+        row[key] = "; ".join(filter(None, (row.get(key), values["error"])))
     else:
         row.update(values)
 
@@ -273,10 +289,10 @@ def run_all_cases(pvts):
             print(json.dumps(result, sort_keys=True), flush=True)
         elif kind == "zin":
             print(json.dumps({"pvt": pvt[0], "zin_pin": what, **result}, sort_keys=True), flush=True)
-            merge_into_row(by_pvt_code.get((pvt[0], ZIN_CODE[0])), result)
+            merge_into_row(by_pvt_code.get((pvt[0], ZIN_CODE[0])), result, "zin")
         else:
             print(json.dumps({"pvt": pvt[0], "kick_code": what[0], **result}, sort_keys=True), flush=True)
-            merge_into_row(by_pvt_code.get((pvt[0], what[0])), result)
+            merge_into_row(by_pvt_code.get((pvt[0], what[0])), result, "kick")
     return rows, len(jobs)
 
 
@@ -291,31 +307,45 @@ def rows_by_pvt(rows):
     return grouped
 
 
-def complete(rows, expected):
-    """Every (PVT, code) row present once, simulated cleanly, with finite metrics."""
-    try:
-        if not rows or len(rows) != expected or any("error" in row for row in rows):
-            return False
-        if not all(finite_number(row.get(metric)) for row in rows for metric in METRICS):
-            return False
-        if not all(finite_number(row[metric]) for row in rows for metric in OPTIONAL_METRICS if metric in row):
-            return False
-        if len({(row["pvt"], row["code"]) for row in rows}) != expected:
-            return False
-        expected_codes = {code[0] for code in CODES}
-        grouped = rows_by_pvt(rows)
-        if len(grouped) * len(expected_codes) != expected:
-            return False
-        if not all({row["code"] for row in group} == expected_codes for group in grouped.values()):
-            return False
-        zin_rows = [row for row in rows if row["code"] == ZIN_CODE[0]]
-        kick_rows = [row for row in rows if row["code"] in {kick[0] for kick in KICKS}]
-        return all(
-            finite_number(row.get(metric))
-            for row in zin_rows for metrics in ZIN_METRICS.values() for metric in metrics
-        ) and all(finite_number(row.get(metric)) for row in kick_rows for metric in KICK_METRICS)
-    except (KeyError, TypeError, AttributeError):
-        return False
+def missing(rows, kind):
+    """Reasons why a measurement group is incomplete over every graded point, or [] when it is complete.
+
+    kind "ac": every (PVT, code) row simulated with finite AC and operating-point metrics; "zin": the impedance runs
+    at gain=00/peak=00 of every point; "kick": the disturbance transients of every point, each about a valid
+    operating point (its AC run at the same point and code)."""
+    reasons = []
+    by_key = {(row["pvt"], row["code"]): row for row in rows}
+    for pvt in PVT:
+        for code in CODES:
+            row = by_key.get((pvt[0], code[0]))
+            where = f"{pvt[0]}/{code[0]}"
+            if row is None:
+                reasons.append(f"{where}: no result")
+                continue
+            if kind == "ac":
+                if "ac_error" in row:
+                    reasons.append(f"{where}: {row['ac_error']}")
+                elif not all(finite_number(row.get(m)) for m in METRICS) or not all(
+                        finite_number(row[m]) for m in OPTIONAL_METRICS if m in row):
+                    reasons.append(f"{where}: non-finite measurement")
+            elif kind == "zin" and code[0] == ZIN_CODE[0]:
+                if "zin_error" in row:
+                    reasons.append(f"{where}: {row['zin_error']}")
+                elif not all(finite_number(row.get(m)) for ms in ZIN_METRICS.values() for m in ms):
+                    reasons.append(f"{where}: impedance measurement missing")
+            elif kind == "kick" and code[0] in {k[0] for k in KICKS}:
+                # A disturbance is only meaningful about a valid operating point of the same point and code;
+                # report every cause.
+                causes = []
+                if "ac_error" in row:
+                    causes.append(f"no valid operating point ({row['ac_error']})")
+                if "kick_error" in row:
+                    causes.append(row["kick_error"])
+                if causes:
+                    reasons.append(f"{where}: " + "; ".join(causes))
+                elif not all(finite_number(row.get(m)) for m in KICK_METRICS):
+                    reasons.append(f"{where}: disturbance measurement missing")
+    return reasons
 
 
 def index_by_gain_peak(group, metric):
@@ -422,22 +452,10 @@ def bandwidth_floor_check(rows):
     return True, "still above G_14-3dB at the 40GHz sweep stop on every code"
 
 
-def dc_transfer(row):
-    """Differential output change for the bench's 100 mV differential DC source step."""
-    return abs(row["dc_drive_diff_v"] - row["output_diff_v"])
-
-
 def input_coupling_corner_check(rows):
-    """DC transfer at every code; the corner at gain=00/peak=00. A corner below the 100 Hz sweep start passes."""
-    worst = max(rows, key=dc_transfer)
-    if dc_transfer(worst) > DC_TRANSFER_MAX_V + ROUNDOFF:
-        return False, (
-            f"DC signal path: not AC-coupled (DC transfer={1e3 * dc_transfer(worst):.3f}mV at "
-            f"{worst['pvt']}/{worst['code']}, max {1e3 * DC_TRANSFER_MAX_V:g}mV)"
-        )
+    """Low-frequency corner at gain=00/peak=00 with the link's 100 nF coupling capacitors in the source path."""
     relevant = [r for r in rows if r["code"] == ZIN_CODE[0]]
     corners = []
-    below_sweep = 0
     for row in relevant:
         if "low_bw_hz" in row:
             corners.append(row["low_bw_hz"])
@@ -448,13 +466,8 @@ def input_coupling_corner_check(rows):
                 f"no rising -3dB crossing below 2MHz, but G(100Hz)={row['gain_start_db']:.2f}dB is more than "
                 f"{LOW_CORNER_FLOOR_DB:g}dB below G_LF={row['g_lf_db']:.2f}dB at {row['pvt']}"
             )
-        else:
-            below_sweep += 1
-    found = f"range={min(corners):.0f}-{max(corners):.0f}Hz (max {LOW_CORNER_MAX_HZ:.0f}Hz)" if corners else "no crossing"
-    return True, (
-        f"{found}; {below_sweep} PVT points with the corner below the 100 Hz sweep start; "
-        f"worst DC transfer={1e3 * dc_transfer(worst):.4f}mV (max {1e3 * DC_TRANSFER_MAX_V:g}mV)"
-    )
+    found = f"range={min(corners):.0f}-{max(corners):.0f}Hz" if corners else "no crossing above 100 Hz"
+    return True, f"{found} (max {LOW_CORNER_MAX_HZ:.0f}Hz; the link's 100 nF capacitors alone give 15.9 kHz)"
 
 
 def input_termination_impedance_check(rows):
@@ -505,12 +518,22 @@ def kick_rows(rows):
 
 
 def common_mode_stability_check(rows):
+    """After the disturbances the output common mode must be still and back within CM_ERROR_MAX_V of vdd/2."""
     def peak_to_peak(row):
         return row["cm_kick_max_v"] - row["cm_kick_min_v"]
-    worst = max(kick_rows(rows), key=peak_to_peak)
-    return peak_to_peak(worst) <= CM_KICK_PP_MAX_V + ROUNDOFF, (
+
+    def error(row):
+        target = row["supply"] / 2
+        return max(abs(row["cm_kick_max_v"] - target), abs(row["cm_kick_min_v"] - target))
+    relevant = kick_rows(rows)
+    worst = max(relevant, key=peak_to_peak)
+    worst_error = max(relevant, key=error)
+    ok = peak_to_peak(worst) <= CM_KICK_PP_MAX_V + ROUNDOFF and error(worst_error) <= CM_ERROR_MAX_V + ROUNDOFF
+    return ok, (
         f"worst output common-mode peak-to-peak over 3.1-4.1us={1e3 * peak_to_peak(worst):.4f}mV at "
-        f"{worst['pvt']}/{worst['code']} (max {1e3 * CM_KICK_PP_MAX_V:g}mV)"
+        f"{worst['pvt']}/{worst['code']} (max {1e3 * CM_KICK_PP_MAX_V:g}mV); largest distance from vdd/2="
+        f"{1e3 * error(worst_error):.2f}mV at {worst_error['pvt']}/{worst_error['code']} "
+        f"(max {1e3 * CM_ERROR_MAX_V:g}mV)"
     )
 
 
@@ -553,6 +576,9 @@ def bias_and_power_check(rows):
         for pin in ("voutp", "voutn"):
             if not (SWING_MARGIN_V <= row[f"{pin}_v"] <= vdd - SWING_MARGIN_V):
                 failures.append(f"{where} {pin}={row[f'{pin}_v']:.3f}V out of the swing range")
+        if abs(row["vocm_pin_i"]) > VOCM_PIN_MAX_A + ROUNDOFF:
+            failures.append(f"{where} vocm pin current={1e6 * row['vocm_pin_i']:.1f}uA "
+                            f"(max {1e6 * VOCM_PIN_MAX_A:g}uA)")
         if vocm_tracking(row) < VOCM_TRACK_MIN_V - ROUNDOFF:
             failures.append(f"{where} vocm tracking: output common mode moved {1e3 * vocm_tracking(row):.3f}mV "
                             f"for +10mV vocm (min {1e3 * VOCM_TRACK_MIN_V:g}mV)")
@@ -567,36 +593,51 @@ def bias_and_power_check(rows):
     return True, (
         f"total power={1e3 * min(powers):.2f}-{1e3 * max(powers):.2f}mW (max {1e3 * POWER_MAX_W:.0f}mW); "
         f"max non-vdd source power={1e3 * max(r['other_source_power_w'] for r in rows):.4f}mW; "
-        f"max CM error={1e3 * cm:.1f}mV; max offset={1e3 * max(r['output_offset_v'] for r in rows):.3f}mV; "
+        f"max CM error={1e3 * cm:.1f}mV; max vocm pin current={1e6 * max(abs(r['vocm_pin_i']) for r in rows):.1f}uA; "
+        f"max offset={1e3 * max(r['output_offset_v'] for r in rows):.3f}mV; "
         f"vocm tracking={1e3 * min(track):.3f}-{1e3 * max(track):.3f}mV for +10mV (min {1e3 * VOCM_TRACK_MIN_V:g}mV)"
     )
 
 
-def blocked_reason(rows, expected):
-    errors = [f"{row.get('pvt')}/{row.get('code')}: {row['error']}" for row in rows if "error" in row]
-    detail = f"; first error {errors[0]}" if errors else ""
-    return f"blocked: incomplete or invalid measurements ({len(rows)}/{expected} rows, {len(errors)} with errors){detail}"
+# Measurement groups each check needs.
+CHECK_GROUPS = {
+    "gain_code_table": ("ac",), "peak_code_table": ("ac",), "output_polarity": ("ac",),
+    "inband_flatness": ("ac",), "above_nyquist_peaking": ("ac",), "bandwidth_floor": ("ac",),
+    "forward_reverse_ratio": ("ac",), "input_coupling_corner": ("ac",),
+    "input_termination_impedance": ("zin",), "input_return_loss": ("ac", "zin"),
+    "common_mode_stability": ("kick",), "differential_stability": ("kick",), "bias_and_power": ("ac",),
+}
+CHECK_FUNCTIONS = {
+    "gain_code_table": lambda rows: gain_code_table_check(rows),
+    "peak_code_table": lambda rows: peak_code_table_check(rows),
+    "output_polarity": lambda rows: output_polarity_check(rows),
+    "inband_flatness": lambda rows: inband_flatness_check(rows),
+    "above_nyquist_peaking": lambda rows: above_nyquist_peaking_check(rows),
+    "bandwidth_floor": lambda rows: bandwidth_floor_check(rows),
+    "forward_reverse_ratio": lambda rows: forward_reverse_ratio_check(rows),
+    "input_coupling_corner": lambda rows: input_coupling_corner_check(rows),
+    "input_termination_impedance": lambda rows: input_termination_impedance_check(rows),
+    "input_return_loss": lambda rows: input_return_loss_check(rows),
+    "common_mode_stability": lambda rows: common_mode_stability_check(rows),
+    "differential_stability": lambda rows: differential_stability_check(rows),
+    "bias_and_power": lambda rows: bias_and_power_check(rows),
+}
 
 
-def checks(rows, expected):
-    if not complete(rows, expected):
-        reason = blocked_reason(rows, expected)
-        return [(name, False, reason) for name in CHECK_NAMES]
-    return [
-        ("gain_code_table", *gain_code_table_check(rows)),
-        ("peak_code_table", *peak_code_table_check(rows)),
-        ("output_polarity", *output_polarity_check(rows)),
-        ("inband_flatness", *inband_flatness_check(rows)),
-        ("above_nyquist_peaking", *above_nyquist_peaking_check(rows)),
-        ("bandwidth_floor", *bandwidth_floor_check(rows)),
-        ("forward_reverse_ratio", *forward_reverse_ratio_check(rows)),
-        ("input_coupling_corner", *input_coupling_corner_check(rows)),
-        ("input_termination_impedance", *input_termination_impedance_check(rows)),
-        ("input_return_loss", *input_return_loss_check(rows)),
-        ("common_mode_stability", *common_mode_stability_check(rows)),
-        ("differential_stability", *differential_stability_check(rows)),
-        ("bias_and_power", *bias_and_power_check(rows)),
-    ]
+def checks(rows):
+    """Each check on its own: it fails if its measurements are missing at any point or fail a limit anywhere."""
+    gaps = {kind: missing(rows, kind) for kind in ("ac", "zin", "kick")}
+    results = []
+    for name in CHECK_NAMES:
+        reasons = [r for kind in CHECK_GROUPS[name] for r in gaps[kind]]
+        if reasons:
+            results.append((name, False, f"no valid measurement at {len(reasons)} point(s), e.g. {reasons[0]}"))
+            continue
+        try:
+            results.append((name, *CHECK_FUNCTIONS[name](rows)))
+        except (KeyError, TypeError, ValueError) as error:
+            results.append((name, False, f"evaluation error: {type(error).__name__}: {error}"))
+    return results
 
 
 def finish(results, points, processes, started):
@@ -606,25 +647,16 @@ def finish(results, points, processes, started):
 
 
 def signoff(started):
-    # Gate: the nominal point, all 16 codes, with its impedance and disturbance runs.
-    nominal_rows, nominal_processes = run_all_cases([NOMINAL_PVT])
-    nominal_checks = checks(nominal_rows, len(CODES))
-    if not all(check[1] for check in nominal_checks):
-        for name, ok, message in nominal_checks:
-            print(f"nominal {'PASS' if ok else 'FAIL'} {name}: {message}", flush=True)
-        results = {check[0]: check for check in nominal_checks if not check[1]}
-        for name in CHECK_NAMES:
-            results.setdefault(name, (name, False, "blocked: nominal signoff failed"))
-        finish(results, len(nominal_rows), nominal_processes, started)
-        return
-    corner_rows, corner_processes = run_all_cases(list(CORNER_PVT))
-    rows = nominal_rows + corner_rows
-    results = {check[0]: check for check in checks(rows, len(PVT) * len(CODES))}
-    finish(results, len(rows), nominal_processes + corner_processes, started)
+    rows, processes = run_all_cases(list(PVT))
+    results = {check[0]: check for check in checks(rows)}
+    finish(results, len(rows), processes, started)
+
+
+STARTED = time.monotonic()
 
 
 def main():
-    started = time.monotonic()
+    started = STARTED
     try:
         signoff(started)
     except Exception as error:  # any verifier fault is a zero, never a crash

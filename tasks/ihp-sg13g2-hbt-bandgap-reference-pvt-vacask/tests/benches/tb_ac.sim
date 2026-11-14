@@ -1,4 +1,4 @@
-Bandgap small-signal bench (hidden): supply rejection and output noise at 10 kHz
+Bandgap small-signal bench (hidden): supply rejection (ripple on vdd and on the enable source) and output noise at 10 kHz
 include "sg13g2_vacask_common.lib"
 include "cornerMOShv.lib" section=__MOS__
 include "cornerMOSlv.lib" section=__MOS__
@@ -10,7 +10,7 @@ model vsource vsource
 model isource isource
 
 vdd (vdd 0) vsource dc=vsup mag=1
-vensrc (ensrc 0) vsource dc=vsup
+vensrc (ensrc 0) vsource dc=vsup mag=1
 ren (ensrc en) sg13g2_default_mod_r r=10k
 xdut (vdd 0 en vref) bandgap
 cl (vref 0) sg13g2_default_mod_c c=__CL__

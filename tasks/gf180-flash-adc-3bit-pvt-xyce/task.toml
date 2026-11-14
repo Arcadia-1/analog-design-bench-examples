@@ -3,7 +3,7 @@ artifacts = ["/app/circuit.spi"]
 
 [task]
 name = "analog-arena/gf180-flash-adc-3bit-pvt-xyce"
-description = "Design a GF180MCU 3-bit 50 MS/s flash ADC, simulated with Xyce, whose thresholds stay within 0.3 LSB, with outputs settled 3 ns after the clock edge, at least 22 dB SNDR and 24.5 dB SFDR and at most 2.5 mW from all pins, across PVT."
+description = "Design a GF180MCU 3-bit 50 MS/s flash ADC, simulated with Xyce, that converts every code with thresholds within 0.3 LSB, clamps out-of-range inputs, settles its outputs 3 ns after the clock edge, reaches 22 dB SNDR at 3.1 MHz and 19 dB at 23.4 MHz and draws at most 2.5 mW from all pins, at representative PVT points."
 authors = [{ name = "Shixuan Wang" }]
 
 [metadata]
