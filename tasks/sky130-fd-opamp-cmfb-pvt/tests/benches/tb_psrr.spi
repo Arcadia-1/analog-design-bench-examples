@@ -1,11 +1,8 @@
 * FD-10  Supply rejection
-* Spec 3.1.3.3, Fig. 31: the FD-01 network with its inputs at VCOM and an AC
-* source on the supply.  Copy P: AC 1 on VDD; copy N: AC 1 on VSS.  The
-* supply-to-output-CM transfer is what the spec observes (PSRR_cm); the
-* supply-to-DM transfer (PSRR_dm) is zero for a symmetric design.
+* The gain -1 network with its inputs at VCOM.  Copy P: AC 1 on VDD; copy N:
+* AC 1 on VSS.  Both the supply-to-output-CM and supply-to-DM transfers are read.
 {{SEED_OPTION}}
 .lib "{{MODEL_LIB}}" {{CORNER}}
-{{MC_PARAM}}
 .include "{{DUT_FILE}}"
 .temp {{TEMP}}
 .options reltol=1e-6 abstol=1e-16 vntol=1e-10

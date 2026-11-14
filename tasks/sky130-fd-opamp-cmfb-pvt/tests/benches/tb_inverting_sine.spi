@@ -1,12 +1,7 @@
-* FD-06 / FD-15 / FD-16  FD inverting amplifier (gain -1, {{R_NET}} ohm) with a
-* differential sine: each input moves {{AMP}} V peak in antiphase, so each
-* output swings {{AMP}} V peak and Vod = 2*{{AMP}} V peak.
-* FD-06: amplitude raised at {{FREQ}} Hz until THD(Vod) exceeds the limit (TRAN output swing).
-* FD-15: THD at the bench amplitude and frequencies (spec 3.2.3.2).
-* FD-16: frequency raised at the full-power amplitude until THD exceeds the limit.
+* FD-15 / FD-16  Gain -1 network ({{R_NET}} ohm) with a differential sine: each
+* input moves {{AMP}} V peak in antiphase at {{FREQ}} Hz, so Vod = 2*{{AMP}} V peak.
 {{SEED_OPTION}}
 .lib "{{MODEL_LIB}}" {{CORNER}}
-{{MC_PARAM}}
 .include "{{DUT_FILE}}"
 .temp {{TEMP}}
 .options reltol=1e-6 abstol=1e-15 vntol=1e-9 method=gear

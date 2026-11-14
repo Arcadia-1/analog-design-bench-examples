@@ -1,14 +1,12 @@
 * FD-12  Noise
-* Spec 3.2.2.6 for the FD class: capacitive gain -1 (C = {{C_NET}} F, the
-* switched-capacitor application of Fig. 32); RL/CL load.  The inputs get
-* their DC bias from a differential-only servo (E sources + L = 1 TH, whose
-* corner with the 1 pF network is 0.16 Hz) that pins their common mode at
-* VCOM: feeding each output straight back to the
-* opposite input would also close a positive common-mode loop that can latch
-* the amplifier off.  Noise of Vop - Von referred to VIP, 0.1 Hz .. 1 GHz.
+* Capacitive gain -1 network (C = {{C_NET}} F), RL/CL load.  The inputs get their DC
+* bias from a differential-only servo (E sources through L = 1 TH, whose corner
+* with the 1 pF network is 0.16 Hz) that pins their common mode at VCOM: feeding
+* each output straight back to the opposite input would also close a positive
+* common-mode loop that can latch the amplifier off.  Noise of Vop - Von
+* referred to VIP, 0.1 Hz .. 1 GHz.
 {{SEED_OPTION}}
 .lib "{{MODEL_LIB}}" {{CORNER}}
-{{MC_PARAM}}
 .include "{{DUT_FILE}}"
 .temp {{TEMP}}
 .options reltol=1e-5 abstol=1e-15 vntol=1e-9

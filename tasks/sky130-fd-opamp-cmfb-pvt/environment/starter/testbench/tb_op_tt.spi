@@ -1,11 +1,11 @@
-* Inverting gain -1 application (100 kohm networks) at tt / 1.8 V / 27 C
-* with zero input and 2 pF || 1 Mohm on each output: output offset Vod,
-* output common mode, supply current and the current drawn from vcm (fed
-* through 1 kohm).  Feedback runs from voutn to vinp
-* and from voutp to vinn.  Run with `ngspice -b testbench/tb_op_tt.spi`;
-* every metric is printed as `name = value`.
-* Then repeats the operating point at 8 and 12 uA of bias current: icc_tracking is the
+* Inverting gain -1 application (100 kohm networks, feedback from voutn to vinp
+* and from voutp to vinn) at tt / 1.8 V / 27 C with zero input and
+* 2 pF || 1 Mohm on each output: output offset Vod, output common mode, supply
+* current and the current drawn from vcm (fed through 1 kohm).  Then repeats
+* the operating point at 8 and 12 uA of bias current: icc_tracking is the
 * exponent n of Icc ~ Ibias^n, the scored bias-tracking quantity.
+* Run with `ngspice -b testbench/tb_op_tt.spi`; every metric is printed as
+* `name = value`.
 .lib "/opt/sky130/continuous/sky130.lib.spice" tt
 .include "/app/circuit.spi"
 .options reltol=1e-6 abstol=1e-15 vntol=1e-9

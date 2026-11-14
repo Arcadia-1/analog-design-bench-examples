@@ -1,17 +1,13 @@
-* FD-13 / FD-14  Small- and large-signal step response, slew rate, settling
-* Spec 3.1.4.1, Fig. 32: capacitive gain -1 (input and feedback C = {{C_NET}} F),
-* VINP and VINN step by +{{V_HI}} V and -{{V_HI}} V in antiphase.  The capacitors give the
-* inputs VP and VN no DC path, so a differential-only servo (the E sources of the FD noise
-* bench) sets their DC level through switches: at DC, Vod sits at the amplifier's own offset
-* and the input common mode at VCOM (.nodeset only guides the DC solution to that state).  The
-* switches open well before the first edge, so during
-* the step the network is purely capacitive.  Vod steps by 2*{{V_HI}} V;
-* slew rate is the
-* largest slope of Vod (SR+, SR-), settling is to +/-0.1 % of the step.
-* RSP/RSN: source resistance ({{RS}} ohm, spec section 2).
+* FD-14  Large-signal step: slew rate and settling
+* Capacitive gain -1 network (input and feedback C = {{C_NET}} F); VINP and VINN step
+* by +{{V_HI}} V and -{{V_HI}} V in antiphase, so Vod steps by 2*{{V_HI}} V.  The
+* capacitors give the inputs VP and VN no DC path, so a differential-only servo
+* sets their DC level through switches: at DC, Vod sits at the amplifier's own
+* offset and the input common mode at VCOM (.nodeset only guides the DC solution
+* to that state).  The switches open well before the first edge, so during the
+* step the network is purely capacitive.
 {{SEED_OPTION}}
 .lib "{{MODEL_LIB}}" {{CORNER}}
-{{MC_PARAM}}
 .include "{{DUT_FILE}}"
 .temp {{TEMP}}
 .options reltol=1e-6 abstol=1e-15 vntol=1e-9 method=gear
@@ -21,8 +17,8 @@ IBIAS vdd ibias {{IBIAS}}
 VCM vcm 0 {{VCM}}
 VIP vips vcm PULSE(0 {{V_HI}} {{T_DELAY}} {{T_EDGE}} {{T_EDGE}} {{T_WIDTH}} {{T_PERIOD}})
 VIN vins vcm PULSE(0 {{V_HI_NEG}} {{T_DELAY}} {{T_EDGE}} {{T_EDGE}} {{T_WIDTH}} {{T_PERIOD}})
-RSP vips vip {{RS}}
-RSN vins vin {{RS}}
+RSP vips vip 0.001
+RSN vins vin 0.001
 C1 vip inp {{C_NET}}
 C2 inp outn {{C_NET}}
 C3 vin inn {{C_NET}}

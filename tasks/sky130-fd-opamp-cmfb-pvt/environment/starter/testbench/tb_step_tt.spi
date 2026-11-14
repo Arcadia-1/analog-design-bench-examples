@@ -1,9 +1,10 @@
 * Large-signal differential step in the capacitive gain -1 application
 * (1 pF input and feedback capacitors) at tt / 1.8 V / 27 C: each input
-* source steps +/-0.5 V, so Vod steps by 1 V.  A differential servo (ideal sources
-* through switches that open at 200 ns) sets the DC level of the amplifier inputs.  Prints the 10-90 % rise time of Vod and the matching
-* slew rate per output (0.4 V over that time); grading takes the steepest slope instead.
-* Also prints the 0.1 % settling time of both edges around the commanded level.
+* source steps +/-0.5 V, so Vod steps by 1 V.  A differential servo (ideal
+* sources through switches that open at 200 ns) sets the DC level of the
+* amplifier inputs.  Prints the 10-90 % rise time of Vod and the matching slew
+* rate per output (0.4 V over that time; grading takes the steepest slope
+* instead), and the 0.1 % settling time of both edges around the commanded level.
 * Run with `ngspice -b testbench/tb_step_tt.spi`.
 .lib "/opt/sky130/continuous/sky130.lib.spice" tt
 .include "/app/circuit.spi"

@@ -1,0 +1,35 @@
+* Output common mode with vcm away from VDD/2, at tt / 1.8 V / 27 C: the gain
+* -1 network of tb_op_tt.spi with zero input and vcm at 0.8 V and then 1.0 V.
+* Prints vocm_err_0p8_v and vocm_err_1p0_v, (Vop + Von)/2 - vcm at each; both
+* are scored (vcm_tracking).  Run with `ngspice -b testbench/tb_vcm_tracking_tt.spi`.
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+.options reltol=1e-6 abstol=1e-15 vntol=1e-9
+.temp 27
+VDD vdd 0 1.8
+VSS vss 0 0
+IBIAS vdd ibias 10u
+VCM vcm 0 0.9
+R1 vcm inp 100k
+R2 inp outn 100k
+R3 vcm inn 100k
+R4 inn outp 100k
+XDUT vss ibias vdd vcmpin inp inn outp outn fd_opamp
+RVCM vcm vcmpin 1k
+RLP outp vcm 1meg
+CLP outp 0 2p
+RLN outn vcm 1meg
+CLN outn 0 2p
+.control
+set noaskquit
+alter vcm dc = 0.8
+op
+let vocm_err_0p8_v = 0.5 * (v(outp) + v(outn)) - 0.8
+print vocm_err_0p8_v
+alter vcm dc = 1.0
+op
+let vocm_err_1p0_v = 0.5 * (v(outp) + v(outn)) - 1.0
+print vocm_err_1p0_v
+quit
+.endc
+.end

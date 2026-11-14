@@ -1,11 +1,8 @@
 * FD-05  Output swing (DC)
-* Spec 3.1.2.1, Fig. 28: R1 = R3 = {{R_HALF}} ohm, R2 = R4 = {{R_NET}} ohm (R1 <= R2,
-* gain -2), VIN on R1, VCOM on R3; VIN swept 0 .. VDD in 2 mV steps.  The
-* linear range is where |dVod/dVin| stays >= 90 % of its value at VCOM; the
-* bench reports the differential range and each output's single-ended range.
+* R1 = R3 = {{R_HALF}} ohm, R2 = R4 = {{R_NET}} ohm (gain -2), VIN on R1, VCOM on R3;
+* VIN swept 0 .. VDD in 2 mV steps.
 {{SEED_OPTION}}
 .lib "{{MODEL_LIB}}" {{CORNER}}
-{{MC_PARAM}}
 .include "{{DUT_FILE}}"
 .temp {{TEMP}}
 .options reltol=1e-6 abstol=1e-15 vntol=1e-9

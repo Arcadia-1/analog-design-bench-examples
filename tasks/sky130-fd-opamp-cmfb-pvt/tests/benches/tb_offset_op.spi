@@ -1,13 +1,10 @@
-* FD-01  Offset, output common mode, supply current, power, bias-pin voltage
-* Spec 3.1.1.1, Fig. 26: inverting network R1 = R3, R2 = R4 (all {{R_NET}} ohm,
-* gain -1), both input resistors driven by VIN = VCOM, operating point.
-* Output offset = Vop - Von (0 for a symmetric design; the Monte Carlo run
-* with corner tt_mm gives the random offset); input-referred
-* VOS = (Vop - Von)/(1 + R2/R1); output common-mode error = (Vop + Von)/2 - VCOM.
-* IOLP/IOLN: DC load current per output (0 A nominally; +/- for the spec 3.3.3 worst case).
+* FD-01 / FD-30 / FD-31  Operating point of the gain -1 network
+* R1 = R3, R2 = R4 (all {{R_NET}} ohm), feedback from outn to inp and outp to inn,
+* both input resistors at VCOM.  Input-referred VOS = (Vop - Von)/(1 + R2/R1);
+* output common-mode error = (Vop + Von)/2 - VCOM.  IOLP/IOLN: DC load current
+* per output (+/- for the critical-load cases).
 {{SEED_OPTION}}
 .lib "{{MODEL_LIB}}" {{CORNER}}
-{{MC_PARAM}}
 .include "{{DUT_FILE}}"
 .temp {{TEMP}}
 .options reltol=1e-6 abstol=1e-15 vntol=1e-9

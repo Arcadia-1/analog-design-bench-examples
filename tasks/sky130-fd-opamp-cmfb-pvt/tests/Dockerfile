@@ -7,6 +7,6 @@ RUN chmod 0755 /opt/analog-arena/check_circuit.py
 
 WORKDIR /app
 COPY test.sh /tests/test.sh
-COPY verify.py utils.py /app/analog_arena_tests/
+COPY verify.py utils.py node_rules.py /app/analog_arena_tests/
 COPY benches /app/analog_arena_tests/benches
 RUN chmod +x /tests/test.sh

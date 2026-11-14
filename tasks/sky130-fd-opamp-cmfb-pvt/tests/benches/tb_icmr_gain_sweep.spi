@@ -1,14 +1,10 @@
-* FD-04  Input common-mode range ICMR of the amplifier itself
-* The inputs sit at V(cms), stepped 0 .. VDD; a DC-only differential servo
-* (E sources + L = 1 GH, 1 GF to ground, as in Fig. 7) nulls Vop - Von so the
+* FD-04  Input common-mode range
+* The inputs sit at V(cms), stepped from 0 to VDD; a DC-only differential
+* servo (E sources through L = 1 GH, 1 GF to ground) nulls Vop - Von so the
 * amplifier stays open-loop for AC.  At every step: OP, then one AC point at
 * {{F_LOW}} Hz with AC 0.5 / 0.5 at 180 degrees in series with the two inputs.
-* A symmetric FD amplifier has no CM-to-DM conversion, so ICMR is the range
-* where the differential gain stays within 6 dB of its value at VCOM and the
-* output common mode stays within 50 mV of VCOM.
 {{SEED_OPTION}}
 .lib "{{MODEL_LIB}}" {{CORNER}}
-{{MC_PARAM}}
 .include "{{DUT_FILE}}"
 .temp {{TEMP}}
 .options reltol=1e-5 abstol=1e-15 vntol=1e-9
