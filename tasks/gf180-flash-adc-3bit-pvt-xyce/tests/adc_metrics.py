@@ -9,44 +9,31 @@ import re
 
 import numpy as np
 
-WARMUP = 2                 # conversions 0 and 1 of every bench are not scored
-FIRST_EDGE = 10e-9         # the clock source starts its first rising edge here
-PERIOD = 20e-9             # 50 MS/s
-SETTLE = 3e-9              # outputs valid from this long after the edge ...
-READ = 19e-9               # ... to the read instant
+WARMUP = 2                    # conversions 0 and 1 of every bench are not scored
+FIRST_EDGE = 10e-9            # the clock source starts its first rising edge here
+PERIOD = 20e-9                # 50 MS/s
+SETTLE = 3e-9                 # outputs valid from this long after the edge ...
+READ = 19e-9                  # ... to the read instant
 LOW_MAX, HIGH_MIN = 0.2, 0.8  # valid logic levels, as fractions of vdd
-POWER_FROM = 50e-9         # power windows start at the third rising edge
-# pin -> (node, bench source whose current flows into that pin, rectify?). The supply and reference rails only
-# source current, so their net v*i is the cost. clk and vin swing and are fed through a series resistor, so a
-# capacitive or resistive load there sloshes energy back and nets to ~0; for them the cost is the energy delivered
-# into the pin, the positive part of v*i, which a reactive load cannot hide.
+VREFN_V, VREFP_V, LSB_V = 1.0, 2.6, 0.2
+# pin -> (node, bench source whose current flows into that pin, rectify?). vdd, vrefp and vrefn are DC rails, so
+# their net v*i is the cost (vrefn sinks the ladder current, which counts negative). clk and vin swing and are fed
+# through a series resistor, so a capacitive or resistive load there sloshes energy back and nets to ~0; for them
+# the cost is the energy delivered into the pin, the positive part of v*i, which a reactive load cannot hide.
 PINS = {"vdd": ("VDD", "VSUP", False), "vrefp": ("VREFP", "VRP", False), "vrefn": ("VREFN", "VRN", False),
         "clk": ("CLK", "VCK", True), "vin": ("VIN", "VSIG", True)}
 
 
 def bench_info(text: str) -> dict:
-    """What a bench deck states about itself: supply, stop time, conversions, expected codes, sine tone."""
-    vdd = float(re.search(r"(?mi)^VSUP vdd vss (\S+)", text).group(1))
-    stop = re.search(r"(?mi)^\.tran\s+\S+\s+(\S+)", text).group(1)
-    stop = float(stop.lower().replace("n", "e-9"))
+    """What a bench deck states about itself: supply, conversions, power window, expected codes, sine tone."""
+    vdd = float(re.search(r"(?mi)^VSUP vdd vss PWL\(0 0 \S+ (\S+)\)", text).group(1))
+    stop = float(re.search(r"(?mi)^\.tran\s+\S+\s+(\S+)", text).group(1).lower().replace("n", "e-9"))
     expected = re.search(r"(?m)^\* expected codes[^:]*: (.*)$", text)
-    sine = re.search(r"(?mi)^VSIG \S+ vss SIN\(\S+ \S+ (\S+)", text)
+    sine = re.search(r"(?mi)^BSIG .*?sin\(2\*pi\*(\S+?)\*TIME", text)
     conversions = int(round((stop - 1e-9 - FIRST_EDGE) / PERIOD))
-    info = {"vdd": vdd, "stop": stop, "conversions": conversions, "power_to": stop - 1e-9,
-            "expected": [int(c) for c in expected.group(1).split()] if expected else None, "tone_bin": None}
-    if sine:
-        freq = float(sine.group(1).lower().replace("meg", "e6"))
-        info["tone_bin"] = round(freq / (1 / PERIOD) * (conversions - WARMUP))
-    return info
-
-
-VREFN_V, VREFP_V, LSB_V = 1.0, 2.6, 0.2
-
-
-def transfer_inputs(text: str) -> list[float]:
-    """The source value of every conversion of a transfer bench (its PWL holds one value per conversion)."""
-    first = float(re.search(r"PWL\(0 (\S+)", text).group(1))
-    return [first] + [float(v) for v in re.findall(r"(?m)^\+ \d+n \S+ \d+\.2n ([-\d.]+)", text)]
+    return {"vdd": vdd, "conversions": conversions, "power_to": stop - 1e-9,
+            "expected": [int(c) for c in expected.group(1).split()] if expected else None,
+            "tone_bin": round(float(sine.group(1)) * PERIOD * (conversions - WARMUP)) if sine else None}
 
 
 def input_kind(volts: float) -> str:
@@ -54,6 +41,16 @@ def input_kind(volts: float) -> str:
     if volts < VREFN_V or volts > VREFP_V:
         return "overrange"
     return "center" if abs((volts - VREFN_V) / LSB_V % 1 - 0.5) < 1e-6 else "edge"
+
+
+def transfer_errors(text: str, info: dict, codes: list[int]) -> list[tuple[int, float, int, int, str]]:
+    """(conversion, input, expected code, code read, input kind) of every wrong scored conversion of a transfer
+    bench. The bench's VSIG PWL holds one value per conversion."""
+    first = float(re.search(r"(?mi)^VSIG \S+ vss PWL\(0 0 \S+ (\S+)", text).group(1))
+    inputs = [first] + [float(v) for v in re.findall(r"(?m)^\+ \d+n \S+ \d+\.2n ([-\d.]+)", text)]
+    want = info["expected"]
+    return [(k, inputs[k], want[k], code, input_kind(inputs[k]))
+            for k, code in zip(range(WARMUP, info["conversions"]), codes) if code != want[k]]
 
 
 def _column(names: list[str], data: np.ndarray, name: str) -> np.ndarray:
@@ -68,7 +65,7 @@ def _window_avg(t: np.ndarray, y: np.ndarray, a: float, b: float) -> float:
 
 
 def evaluate(names: list[str], data: np.ndarray, info: dict) -> dict:
-    """Codes, output-level violations and pin power of one run."""
+    """Codes, output-level violations, stuck outputs and pin power of one run."""
     t = data[:, 0]
     vdd = info["vdd"]
     bits = {b: _column(names, data, f"B{b}") for b in (2, 1, 0)}
@@ -89,20 +86,20 @@ def evaluate(names: list[str], data: np.ndarray, info: dict) -> dict:
             elif span.max() > LOW_MAX * vdd:
                 bad.append(f"conversion {k} b{bit} rose to {span.max():.3f} V")
         codes.append(code)
+    # Every bench starts from zero state, so metering from t = 0 charges the circuit for any energy it stores.
     power = {}
     for pin, (node, source, rectify) in PINS.items():
         p = -_column(names, data, node) * _column(names, data, f"{source}#BRANCH")
         if rectify:
             p = np.maximum(p, 0.0)
-        power[pin] = _window_avg(t, p, POWER_FROM, info["power_to"])
-    # a bit that never leaves one logic level across the scored conversions is stuck, not converting
+        power[pin] = _window_avg(t, p, 0.0, info["power_to"])
     stuck = [f"b{bit}" for bit in (2, 1, 0)
              if not (any(c & (1 << bit) for c in codes) and any(not c & (1 << bit) for c in codes))]
     return {"codes": codes, "bad_levels": bad, "stuck_bits": stuck, "power_w": sum(power.values()),
             **{f"power_{pin}_w": v for pin, v in power.items()}}
 
 
-def spectrum(codes: list[int], tone_bin: int = 1) -> tuple[float, float]:
+def spectrum(codes: list[int], tone_bin: int) -> tuple[float, float]:
     """SNDR and SFDR of a coherent record: DC removed, the tone bin against every other bin up to Nyquist
     (the Nyquist bin at half weight, as a one-sided spectrum counts it)."""
     n = len(codes)

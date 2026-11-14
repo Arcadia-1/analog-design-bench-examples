@@ -1,7 +1,5 @@
-* Mutant: the dummy-clock-load mutant with its drivers on a local rail: 20 nF charged to vdd at the
-* operating point, refilled through 100 kohm. The rail barely drops during a bench, so the metered power stays
-* under 2.5 mW while the drivers burn the reservoir's stored charge.
-* Expected: the stored-energy signoff rule fires; reward 0.
+* Alternative: the reference with nodes and instances renamed so Xyce writes '#' for some '0's in its raw
+* file (bus names such as d[0], and names like n10, X00, X000). The grader turns each '#' back into '0'.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
@@ -25,10 +23,10 @@ MP1 y a vdd vdd pfet_03v3 w=4u l=0.28u
 MP2 y b vdd vdd pfet_03v3 w=4u l=0.28u
 MP3 y c vdd vdd pfet_03v3 w=4u l=0.28u
 MP4 y d vdd vdd pfet_03v3 w=4u l=0.28u
-MN1 y a n1 vss nfet_03v3 w=4u l=0.28u m=2
-MN2 n1 b n2 vss nfet_03v3 w=4u l=0.28u m=2
-MN3 n2 c n3 vss nfet_03v3 w=4u l=0.28u m=2
-MN4 n3 d vss vss nfet_03v3 w=4u l=0.28u m=2
+MN1 y a n10 vss nfet_03v3 w=4u l=0.28u m=2
+MN2 n10 b n20 vss nfet_03v3 w=4u l=0.28u m=2
+MN3 n20 c n30 vss nfet_03v3 w=4u l=0.28u m=2
+MN4 n30 d vss vss nfet_03v3 w=4u l=0.28u m=2
 .ends fa_nand4
 .subckt fa_comp clk vinp vinn outp outn vdd vss
 * StrongARM latch: outp/outn precharge high, outn falls when vinp > vinn
@@ -101,13 +99,6 @@ XE6 n6 x1 b1 vdd vss fa_nand2
 XE7 q5 n6 y1 vdd vss fa_nand2
 XE8 q3 n4 y2 vdd vss fa_nand2
 XE9 q1 n2 y3 vdd vss fa_nand2
-XE10 n7 y1 y2 y3 b0 vdd vss fa_nand4
+X000 n7 y1 y2 y3 b0 vdd vss fa_nand4
 XE11 n4 b2 vdd vss fa_inv
-* ---- extra clocked load, run from a local reservoir rail ----
-RRES vdd vres 100k
-CRES vres vss 20n
-XDL1 ck dl1 vres vss fa_clkbuf
-XDL2 ck dl2 vres vss fa_clkbuf
-CDL1 dl1 vss 4p
-CDL2 dl2 vss 4p
 .ends flash_adc_3bit

@@ -1,7 +1,19 @@
-* Mutant: the reservoir-hidden-power mutant with its 20 nF made of MOS gate oxide: two large NMOS with
-* gates on the local rail and their channels joined to each other and to vss, so neither looks like a
-* two-terminal capacitor. The drivers burn the stored charge while the metered power stays low.
-* Expected: the stored-energy signoff rule fires; reward 0.
+* Mutant: the reservoir rail is named gnd. In Xyce, gnd inside a subcircuit is a local node, not ground, so the
+* rail is a hidden supply; check_circuit.py refuses gnd (and 0) as node names.
+* Expected: check_circuit.py rejects it; reward 0.
+.subckt zdrv a y vs vb vss
+MP1 m a vs vb pfet_03v3 w=3u l=0.28u
+MN1 m a vss vss nfet_03v3 w=1.5u l=0.28u
+MP2 y m vs vb pfet_03v3 w=4u l=0.28u m=4
+MN2 y m vss vss nfet_03v3 w=4u l=0.28u m=2
+.ends zdrv
+* Reference 3-bit flash ADC (GF180MCU 3.3 V devices, Xyce):
+* - resistor ladder from vrefn to vrefp (8 x 500 ohm, 0.2 V taps) with 2 pF tap decoupling against comparator kickback
+* - 2 pF from vin to vss, which holds the input against the kickback of the seven comparators through the source
+* - a two-inverter clock buffer: the clk pin drives one small inverter gate only
+* - seven StrongARM comparators (evaluate while the buffered clock is high, precharge while low)
+* - a ratioed set/reset latch per comparator that holds the decision through the precharge phase
+* - a static CMOS thermometer-to-binary encoder
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
@@ -103,11 +115,10 @@ XE8 q3 n4 y2 vdd vss fa_nand2
 XE9 q1 n2 y3 vdd vss fa_nand2
 XE10 n7 y1 y2 y3 b0 vdd vss fa_nand4
 XE11 n4 b2 vdd vss fa_inv
-RRES vdd vres 100k
-MCA1 cx vres vss vss nfet_03v3 w=100u l=50u m=500
-MCA2 cx vres vss vss nfet_03v3 w=100u l=50u m=500
-XDL1 ck dl1 vres vss fa_clkbuf
-XDL2 ck dl2 vres vss fa_clkbuf
+RRES vdd gnd 100k
+CRES gnd vss 20n
+XDL1 ck dl1 gnd vdd vss zdrv
+XDL2 ck dl2 gnd vdd vss zdrv
 CDL1 dl1 vss 4p
 CDL2 dl2 vss 4p
 .ends flash_adc_3bit

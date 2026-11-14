@@ -14,7 +14,8 @@ The netlist may hold only `.subckt` / `.ends` blocks. Inside them:
 
 No sources, switches, behavioral or controlled elements, inductors, models, parameters, includes, options or analyses.
 Every subcircuit must contain at least one element, none may instantiate itself, and the required subcircuit must exist
-with exactly the given name and pin order. Names (elements, nodes, subcircuits) use letters, digits and `_ . - [ ] < >`.
+with exactly the given name and pin order. Names (elements, nodes, subcircuits) use letters, digits and `_ . - [ ] < >`;
+the node names `0` and `gnd` are refused (ground is the `vss` pin).
 Exit code 0 when the netlist passes, 1 otherwise. Standard library only.
 """
 from __future__ import annotations
@@ -32,6 +33,7 @@ L_RANGE = (0.28e-6, 50e-6)
 SCALE = {"meg": 1e6, "mil": 25.4e-6, "t": 1e12, "g": 1e9, "k": 1e3, "m": 1e-3, "u": 1e-6, "n": 1e-9, "p": 1e-12,
          "f": 1e-15}
 NUMBER_RE = re.compile(r"^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)([a-z]*)$", re.I)
+RESERVED_NODES = {"0", "gnd"}  # Xyce: 0 is the global ground; gnd inside a subcircuit is a local node
 NAME_RE = re.compile(r"^[A-Za-z0-9_.\-\[\]<>]+$")
 
 
@@ -58,11 +60,8 @@ def logical_lines(text: str) -> list[tuple[int, str]]:
         line = re.split(r"[$;]", raw, maxsplit=1)[0].strip()
         if not line or line[0] == "*":
             continue
-        if line[0] == "+":
-            if out:
-                out[-1] = (out[-1][0], out[-1][1] + " " + line[1:].strip())
-            else:
-                out.append((number, line))
+        if line[0] == "+" and out:
+            out[-1] = (out[-1][0], out[-1][1] + " " + line[1:].strip())
         else:
             out.append((number, line))
     return out
@@ -100,9 +99,12 @@ def violations(text: str, required: list[str] | None = None) -> list[str]:
                     current = words[1].lower()
                     seen.add(current)
                     names = set()
-                    bad = [w for w in words[2:] if "=" in w or w.lower() == "params:" or not NAME_RE.match(w)]
+                    bad = [w for w in words[2:] if not NAME_RE.match(w)]
                     if bad:
                         found.append(f"{where}: .subckt {current} takes pin names only, not {' '.join(bad)}")
+                    reserved = [w for w in words[2:] if w.lower() in RESERVED_NODES]
+                    if reserved:
+                        found.append(f"{where}: pin name {' '.join(reserved)} is reserved; use the vss pin for ground")
             elif head == ".ends":
                 if current is None:
                     found.append(f"{where}: .ends outside a subcircuit")
@@ -133,6 +135,12 @@ def violations(text: str, required: list[str] | None = None) -> list[str]:
         if any(w.lower() == "params:" for w in words) or any("{" in w or "'" in w for w in words):
             found.append(f"{where}: expressions and params: are not allowed")
             continue
+        node_words = (positional[:4] if kind == "m" else positional[:2] if kind in "rc"
+                      else positional[:-1] if kind == "x" else [])
+        reserved = [w for w in node_words if w.lower() in RESERVED_NODES]
+        if reserved:
+            found.append(f"{where}: node {' '.join(reserved)} is not allowed; tie ground to the vss pin "
+                         "(in Xyce, gnd inside a subcircuit is a separate local node, not ground)")
         if "m" in params and not whole(params["m"]):
             found.append(f"{where}: m={params['m']} must be a whole number of at least 1")
         if kind == "m":
@@ -143,7 +151,8 @@ def violations(text: str, required: list[str] | None = None) -> list[str]:
             if extra:
                 found.append(f"{where}: {positional[4]} takes w, l and m only, not {', '.join(extra)}"
                              + (" (use m for parallel devices)" if "nf" in extra else "")
-                             + (" (signoff sets the diffusion geometry from w)" if set(extra) & {"ad", "as", "pd", "ps"} else ""))
+                             + (" (signoff sets the diffusion geometry from w)"
+                                if set(extra) & {"ad", "as", "pd", "ps"} else ""))
             w, l = spice_number(params.get("w", "")), spice_number(params.get("l", ""))
             if w is None or l is None:
                 found.append(f"{where}: {positional[4]} needs plain numeric w and l in metres (e.g. w=4u l=0.28u)")

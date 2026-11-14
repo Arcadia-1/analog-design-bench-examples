@@ -12,10 +12,11 @@ and the IHP SG13G2 models in `/opt/ihp/pdk/ihp-sg13g2/libs.tech/vacask`.
 supply, `vss` the ground and substrate (0 V), `en` the active-high enable and
 `vref` the reference output.
 
-The design is a bandgap reference built on the SiGe HBTs of the process: its
-output is set by base-emitter voltages and their differences. You choose the
-circuit, device sizes and hierarchy; grading scores only the external
-electrical behavior below.
+The intended design is a bandgap reference built on the SiGe HBTs of the
+process, with its output set by base-emitter voltages and their differences.
+You choose the circuit, device sizes and hierarchy; grading scores only the
+external electrical behavior below, so any circuit that meets it is graded the
+same way.
 
 ## Operating conditions
 
@@ -62,9 +63,15 @@ product of the sets below, not a representative subset.
 Each check passes or fails, and must pass at every point it covers; the reward
 is the fraction of the 10 checks that pass, with two exceptions that score 0:
 a broken rule of [`signoff-rules.md`](signoff-rules.md), and a circuit that is
-not a reference, which here means one that fails `vref_accuracy` or
-`line_regulation` (an output outside the window, or one that follows the
-supply, is not graded on its other properties).
+not a reference at all: one whose `vref` leaves 0.9-1.3 V at any DC point,
+whose line regulation exceeds 20 mV/V at any corner and temperature, whose
+temperature coefficient exceeds 500 ppm/C at any corner and supply (a bare
+Vbe, an untilted Vbe multiplier or a diode stack is about 1000 ppm/C or more;
+a circuit compensated with resistor temperature coefficients is graded like
+any other reference), or whose
+DC bench fails to simulate. These coarse limits only separate references from
+dividers, dead outputs and supply followers; the scored limits below are
+separate checks.
 
 | Check | Requirement |
 |---|---|
@@ -106,9 +113,8 @@ Measurement definitions:
   edge. Settling time is the last time `vref` is more than 5 mV from the
   target, measured from the end of the edge (the end of the supply ramp or of
   the 100 ns enable edge); a run that ends outside the band fails. The target
-  must itself lie in the 1.00-1.15 V window and agree within 1 mV with the DC
-  bench's `vref` at the same corner, supply and temperature, or
-  `startup_settling` fails. Overshoot
+  must agree within 1 mV with the DC bench's `vref` at the same corner, supply
+  and temperature, or `startup_settling` fails. Overshoot
   is the largest `vref` − target from the end of the edge on. During a supply
   ramp, before it ends, `vref` is not graded.
 - **Initial guess**: at -40 C, 27 C and 125 C the DC bench solves the

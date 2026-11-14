@@ -36,15 +36,19 @@ VACASK starts in or next to the bench; `/app` and `/app/testbench` have one.
 - An instance: `name (node1 node2 ...) master param=value ...`. The node list
   is in parentheses and follows the master's terminal order.
 - Values are plain numbers with an optional SI prefix and no unit:
-  `a f p n u m k M G T`, or `meg`; nothing else is accepted (no `K`, `x`,
-  `mil` or units). **`M` is mega and `m` is milli** (`1M` = 1e6, `1m` =
+  `a f p n u m k M G T`, or `meg`, or an exponent (`1e-6`), but not both
+  (`1e-6u` is refused); nothing else is accepted (no `K`, `x`, `mil` or
+  units). **`M` is mega and `m` is milli** (`1M` = 1e6, `1m` =
   1e-3); `2u` is 2e-6. Write `2u`, not `2um`.
 - Node `0` (global ground) may not be used: connect to the `vss` port.
 
 ## What the circuit may contain
 
 Only `subckt` ... `ends` blocks, not nested, and inside them instances of the
-cells below or of subcircuits defined in the same file. Parameters, `$`
+cells below or of subcircuits defined in the same file. A subckt name may not
+reuse a name the PDK libraries or the simulator already define (for example
+`ptap1`, `cparasitic`, `npn13G2_5t`, `cap_rfcmim`, `sg13g2_default_mod_r`,
+`vsource`); the eligibility check lists them in `LIBRARY_NAMES`. Parameters, `$`
 names, expressions, `parameters`, `model`, `include`, `load`, `@if`,
 `global`, `ground`, `control` and `embed` statements are not allowed.
 
@@ -63,6 +67,8 @@ names, expressions, `parameters`, `model`, `include`, `load`, `@if`,
 | `cap_cmim` | `(plus minus)` | `w` and `l` 1.14u to 100u (both required), `m`; about 1.5 fF/µm² |
 
 Whole-number parameters and their ranges: `ng` 1 to 1000, `m` 1 to 10000, `b` 0 to 10000, `nx` as above.
+The MIM capacitors together may use at most 133 000 µm² (the sum of `w`·`l`·`m` over every `cap_cmim`, counting
+subcircuit copies), about 200 pF. The budget covers the MIM capacitors only; MOS gate capacitance is not counted.
 
 `bn` is the substrate terminal of the HBTs and resistors and must be `vss`.
 HBTs have no `m`: place several instances, or use `nx`. The HBT models include

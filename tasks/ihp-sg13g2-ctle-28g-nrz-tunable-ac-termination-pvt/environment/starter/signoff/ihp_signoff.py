@@ -10,6 +10,7 @@ checks the device voltage ratings. A broken rule is recorded in VIOLATIONS and t
 import os
 import re
 import subprocess
+import time
 from pathlib import Path
 
 import ihp_netlist
@@ -25,8 +26,9 @@ NOT_CONVERGED = re.compile(r"timestep too small|simulation\(s\) aborted|operatin
 RETRY_OPTIONS = ".options gminsteps=50 srcsteps=50 itl1=1000 itl2=500 itl4=200"
 RUN_TIMEOUT_S = 300  # a run still going after this is stopped and gives no measurements
 TIMED_OUT = 124
+DEADLINE = None  # time.monotonic() after which a failed run is not retried (set by the grader)
 INCLUDE = re.compile(r'^\s*\.include\s+"?([^"\s]+)"?\s*$', re.I | re.M)
-DUT = re.compile(r"^\s*(xdut)\s+(.+?)\s+" + TOP + r"\s*$", re.I | re.M)
+DUT = re.compile(r"^\s*xdut\s+(.+?)\s+" + TOP + r"\s*$", re.I | re.M)
 
 
 class RuleError(Exception):
@@ -124,14 +126,18 @@ def prepare(deck_path, cwd):
         subckts = ihp_netlist.check(circuit.read_text(), TOP, TOP_PINS)
     except (OSError, ihp_netlist.NetlistError) as error:
         raise RuleError(f"netlist: {error}") from error
-    ports = dut.group(2).split()
+    ports = dut.group(1).split()
     if len(ports) != len(TOP_PINS):
         raise RuleError("bench XDUT pin count")
     init = PDK_SPICEINIT.read_text() + "\nset num_threads=1\nset filetype=ascii\n"
     (Path(cwd) / ".spiceinit").write_text(init)
+    remove_rawfiles(cwd)
+    return ihp_netlist.flatten(subckts, TOP, "xdut", ports)
+
+
+def remove_rawfiles(cwd):
     for stale in Path(cwd).glob("signoff_*.raw"):
         stale.unlink()
-    return ihp_netlist.flatten(subckts, TOP, "xdut", ports)
 
 
 def run(cmd, cwd, **kwargs):
@@ -142,18 +148,20 @@ def run(cmd, cwd, **kwargs):
     try:
         devices = prepare(deck_path, cwd)
     except RuleError as error:
-        return fail(cmd, run_name, str(error))
+        return fail(cmd, str(error))
     result = simulate(cmd, cwd, kwargs)
     if result.returncode == TIMED_OUT:
-        return result  # a run that hit the time limit is not retried
-    if result.returncode != 0 or NOT_CONVERGED.search(result.stdout or ""):
+        return result
+    past_deadline = DEADLINE is not None and time.monotonic() > DEADLINE
+    if past_deadline and result.returncode != 0:
+        return result  # no retry after the grading deadline
+    if not past_deadline and (result.returncode != 0 or NOT_CONVERGED.search(result.stdout or "")):
         # One retry with more gmin and source stepping and more iterations.
         deck = deck_path.read_text()
         if deck.count("\n.control\n") != 1:
             return result
         deck_path.write_text(deck.replace("\n.control\n", "\n" + RETRY_OPTIONS + "\n.control\n"))
-        for stale in Path(cwd).glob("signoff_*.raw"):
-            stale.unlink()
+        remove_rawfiles(cwd)
         result = simulate(cmd, cwd, kwargs)
         if result.returncode != 0:
             return result
@@ -161,9 +169,9 @@ def run(cmd, cwd, **kwargs):
         for raw in sorted(Path(cwd).glob("signoff_*.raw")):
             violation = check_ratings(devices, read_raw(raw), f"{run_name}/{raw.stem}", "_op" in raw.stem)
             if violation:
-                return fail(cmd, run_name, violation, result.stdout)
+                return fail(cmd, violation, result.stdout)
     except (RuleError, ValueError, IndexError) as error:
-        return fail(cmd, run_name, f"ratings: {error}", result.stdout)
+        return fail(cmd, f"ratings: {error}", result.stdout)
     return result
 
 
@@ -174,7 +182,7 @@ def simulate(cmd, cwd, kwargs):
         return subprocess.CompletedProcess(cmd, TIMED_OUT, stdout=f"run stopped after {RUN_TIMEOUT_S} s\n", stderr="")
 
 
-def fail(cmd, run_name, message, stdout=""):
+def fail(cmd, message, stdout=""):
     line = f"SIGNOFF RULE: {message}"
     VIOLATIONS.append(line)
     return subprocess.CompletedProcess(cmd, 3, stdout=(stdout or "") + "\n" + line + "\n", stderr="")

@@ -1,5 +1,5 @@
 * Mutant: the NMOS of the b2 output inverter has its bulk on vdd instead of vss. The conversion
-* barely changes, but the source-bulk junction is forward biased by a whole supply at the operating point.
+* barely changes, but the source-bulk junction is forward biased by a whole supply once the supply has ramped up.
 * Expected: the junction signoff rule fires; reward 0.
 
 .subckt fa_inv a y vdd vss

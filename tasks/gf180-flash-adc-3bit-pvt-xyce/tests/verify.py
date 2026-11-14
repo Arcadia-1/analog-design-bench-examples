@@ -21,10 +21,9 @@ import xyce_signoff  # noqa: E402
 
 TASK_ID = "gf180-flash-adc-3bit-pvt-xyce"
 OUTPUT = Path("/logs/verifier")
-DESIGN = Path("/app/circuit.spi")
 BENCHES = HERE / "benches"
 
-# ---- public contract (spec/README.md) ----
+# public contract (spec/README.md)
 SNDR_3MHZ_MIN_DB = 22.0
 SNDR_23MHZ_MIN_DB = 19.0
 POWER_MAX_W = 2.5e-3
@@ -38,7 +37,6 @@ SINE_POINTS = (
 )
 CASES = [{"bench": "transfer", "corner": c, "vdd": v, "temp": t} for c, v, t in TRANSFER_POINTS] + \
         [{"bench": b, "corner": c, "vdd": v, "temp": t} for b in ("sine", "nyquist") for c, v, t in SINE_POINTS]
-CHECKS = ("transfer_codes", "overrange_codes", "output_timing", "sndr_3mhz", "sndr_23mhz", "power")
 
 
 def label(case: dict) -> str:
@@ -48,9 +46,8 @@ def label(case: dict) -> str:
 def render(text: str, case: dict) -> str:
     vdd = f'{case["vdd"]:.2f}'
     text = text.replace('sm141064.xyce" typical', f'sm141064.xyce" {case["corner"]}', 1)
-    text = text.replace('.include "/app/circuit.spi"', f'.include "{DESIGN}"', 1)
     text = re.sub(r"(?m)^\.options device temp=27$", f'.options device temp={case["temp"]}', text, count=1)
-    text = re.sub(r"(?m)^VSUP vdd vss 3\.3$", f"VSUP vdd vss {vdd}", text, count=1)
+    text = re.sub(r"(?m)^VSUP vdd vss PWL\(0 0 5n 3\.3\)$", f"VSUP vdd vss PWL(0 0 5n {vdd})", text, count=1)
     return text.replace("PULSE(0 3.3 ", f"PULSE(0 {vdd} ", 1)
 
 
@@ -64,7 +61,7 @@ def run_case(case: dict) -> dict:
         deck.write_text(text)
         info = adc_metrics.bench_info(text)
         started = time.monotonic()
-        result = xyce_signoff.run(deck, [(adc_metrics.POWER_FROM, info["power_to"])])
+        result = xyce_signoff.run(deck)
         row["seconds"] = round(time.monotonic() - started, 1)
     if result.get("rule"):
         return {**row, "rule": result["rule"], "error": f'signoff rule: {result["rule"]}'}
@@ -75,10 +72,7 @@ def run_case(case: dict) -> dict:
     except (ValueError, KeyError, IndexError) as error:
         return {**row, "error": f"missing waveform: {error}"}
     if case["bench"] == "transfer":
-        inputs = adc_metrics.transfer_inputs(text)
-        row["errors"] = [(k, inputs[k], info["expected"][k], code, adc_metrics.input_kind(inputs[k]))
-                         for k, code in zip(range(adc_metrics.WARMUP, info["conversions"]), row["codes"])
-                         if code != info["expected"][k]]
+        row["errors"] = adc_metrics.transfer_errors(text, info, row["codes"])
     else:
         row["sndr_db"], row["sfdr_db"] = adc_metrics.spectrum(row["codes"], info["tone_bin"])
     return row
@@ -88,31 +82,31 @@ def score(rows: list[dict]) -> list[tuple[str, bool, str]]:
     """Each check passes only when every run it uses completed and met the limit."""
     def runs(*benches):
         used = [r for r in rows if r["bench"] in benches]
-        failed = [r for r in used if "error" in r]
-        done = [r for r in used if "error" not in r]
-        note = "" if not failed and len(used) == sum(c["bench"] in benches for c in CASES) else \
-            f" [incomplete: {'; '.join(r['label'] + ': ' + r['error'] for r in failed) or 'runs missing'}]"
-        return done, note
+        failed = [f"{r['label']}: {r['error']}" for r in used if "error" in r]
+        note = f" [incomplete: {'; '.join(failed)}]" if failed else ""
+        return [r for r in used if "error" not in r], note
 
-    def wrong(kinds):
+    def listing(name, found, noun, clean, note):
+        message = f"{len(found)} {noun}: " + "; ".join(found[:4]) if found else clean
+        return name, not found and not note, message + note
+
+    def wrong_codes(name, kinds, clean):
         done, note = runs("transfer")
-        out = [f"{r['label']}: conversion {k} vin={v:.2f} V read {got}, want {want}"
-               for r in done for k, v, want, got, kind in r["errors"] if kind in kinds]
-        return out, note
+        found = [f"{r['label']}: conversion {k} vin={v:.2f} V read {got}, want {want}"
+                 for r in done for k, v, want, got, kind in r["errors"] if kind in kinds]
+        return listing(name, found, "wrong", clean, note)
 
-    checks = []
-    err, note = wrong(("center", "edge"))
-    transfer_ok = not err and not note
-    checks.append(("transfer_codes", transfer_ok, (f"{len(err)} wrong: " + "; ".join(err[:4]) if err else
-                   "every code center and every input 0.3 LSB from a threshold converts correctly") + note))
-    err, note = wrong(("overrange",))
-    checks.append(("overrange_codes", not err and not note, (f"{len(err)} wrong: " + "; ".join(err[:4]) if err else
-                   "inputs below vrefn read 0 and above vrefp read 7") + note))
+    checks = [
+        wrong_codes("transfer_codes", ("center", "edge"),
+                    "every code center and every input 0.3 LSB from a threshold converts correctly"),
+        wrong_codes("overrange_codes", ("overrange",), "inputs below vrefn read 0 and above vrefp read 7"),
+    ]
+    transfer_ok = checks[0][1]
     done, note = runs("transfer", "sine", "nyquist")
-    lv = [f"{r['label']}: {m}" for r in done for m in r["bad_levels"]]
-    lv += [f"{r['label']}: output {bit} never toggles" for r in done for bit in r["stuck_bits"]]
-    checks.append(("output_timing", not lv and not note, (f"{len(lv)} violations: " + "; ".join(lv[:4]) if lv else
-                   "every output toggles and is valid from 3 ns to 19 ns after every edge") + note))
+    found = [f"{r['label']}: {m}" for r in done for m in r["bad_levels"]]
+    found += [f"{r['label']}: output {bit} never toggles" for r in done for bit in r["stuck_bits"]]
+    checks.append(listing("output_timing", found, "violations",
+                          "every output toggles and is valid from 3 ns to 19 ns after every edge", note))
     for name, bench, limit in (("sndr_3mhz", "sine", SNDR_3MHZ_MIN_DB), ("sndr_23mhz", "nyquist", SNDR_23MHZ_MIN_DB)):
         done, note = runs(bench)
         worst = min(done, key=lambda r: r["sndr_db"], default=None)
@@ -137,8 +131,8 @@ def write_results(checks: list[tuple[str, bool, str]], rules: list[str]) -> floa
     reward = passed / len(checks)
     if rules:
         unique = list(dict.fromkeys(rules))
-        tests.append({"name": "signoff_rules", "status": "failed",
-                      "message": f"{len(unique)} run(s) broke a signoff rule; the task scores 0: " + " | ".join(unique[:5])})
+        tests.append({"name": "signoff_rules", "status": "failed", "message":
+                      f"{len(unique)} run(s) broke a signoff rule; the task scores 0: " + " | ".join(unique[:5])})
         reward = 0.0
     OUTPUT.mkdir(parents=True, exist_ok=True)
     (OUTPUT / "reward.json").write_text(json.dumps({
@@ -155,8 +149,7 @@ def write_results(checks: list[tuple[str, bool, str]], rules: list[str]) -> floa
 
 def main() -> int:
     started = time.monotonic()
-    cpus = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
-    workers = max(1, min(4, cpus))
+    workers = min(4, len(os.sched_getaffinity(0)))
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         rows = list(pool.map(run_case, CASES))
     rules = [f"{r['label']}: {r['rule']}" for r in rows if r.get("rule")]

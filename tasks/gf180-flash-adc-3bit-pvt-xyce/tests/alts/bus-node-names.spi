@@ -1,8 +1,5 @@
-* Mutant: a 1 nF rail isolated by a set/keep latch. At the operating point MPASS holds the rail near vdd;
-* the first clk-high latches the pass gate high, isolating the rail, which then powers a 4 pF clock driver
-* for the rest of the bench. In-window vdd power stays low (about 1 mW) while the rail is drawn down.
-* Expected: the stored-energy signoff rule, measured against the rail's level at the window start, fires;
-* reward 0.
+* Alternative: the reference with nodes and instances renamed so Xyce writes '#' for some '0's in its raw
+* file (bus names such as d[0], and names like n10, X00, X000). The grader turns each '#' back into '0'.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
@@ -34,15 +31,15 @@ MN4 n3 d vss vss nfet_03v3 w=4u l=0.28u m=2
 .subckt fa_comp clk vinp vinn outp outn vdd vss
 * StrongARM latch: outp/outn precharge high, outn falls when vinp > vinn
 MTAIL tail clk vss vss nfet_03v3 w=3u l=0.28u m=4
-MIN1 dx vinp tail vss nfet_03v3 w=4u l=0.28u m=2
+MIN1 d[0] vinp tail vss nfet_03v3 w=4u l=0.28u m=2
 MIN2 dy vinn tail vss nfet_03v3 w=4u l=0.28u m=2
-MNL1 outn outp dx vss nfet_03v3 w=4u l=0.28u
+MNL1 outn outp d[0] vss nfet_03v3 w=4u l=0.28u
 MNL2 outp outn dy vss nfet_03v3 w=4u l=0.28u
 MPL1 outn outp vdd vdd pfet_03v3 w=4u l=0.28u
 MPL2 outp outn vdd vdd pfet_03v3 w=4u l=0.28u
 MPC1 outn clk vdd vdd pfet_03v3 w=2u l=0.28u
 MPC2 outp clk vdd vdd pfet_03v3 w=2u l=0.28u
-MPC3 dx clk vdd vdd pfet_03v3 w=2u l=0.28u
+MPC3 d[0] clk vdd vdd pfet_03v3 w=2u l=0.28u
 MPC4 dy clk vdd vdd pfet_03v3 w=2u l=0.28u
 .ends fa_comp
 .subckt fa_hold outp outn q vdd vss
@@ -78,7 +75,7 @@ CT4 t4 vss 2p
 CT5 t5 vss 2p
 CT6 t6 vss 2p
 CT7 t7 vss 2p
-XC1 ck vin t1 cp1 cn1 vdd vss fa_comp
+X00 ck vin t1 cp1 cn1 vdd vss fa_comp
 XH1 cp1 cn1 q1 vdd vss fa_hold
 XC2 ck vin t2 cp2 cn2 vdd vss fa_comp
 XH2 cp2 cn2 q2 vdd vss fa_hold
@@ -104,17 +101,4 @@ XE8 q3 n4 y2 vdd vss fa_nand2
 XE9 q1 n2 y3 vdd vss fa_nand2
 XE10 n7 y1 y2 y3 b0 vdd vss fa_nand4
 XE11 n4 b2 vdd vss fa_inv
-* ---- warm-up reservoir ----
-* At the DC operating point clk=0, so gsw is held low by RG and the wide PMOS MPASS charges the 1 nF rail vres
-* from vdd. The first clk-high turns MP_set on (clkb low) and pulls gsw to vdd; the keeper MP_keep then holds
-* gsw high for the rest of the run, so MPASS is off and vres is isolated. One 4 pF clock driver runs off vres.
-XCLKB clk clkb vdd vss fa_inv
-XGSWB gsw gswb vdd vss fa_inv
-MP_set gsw clkb vdd vdd pfet_03v3 w=8u l=0.28u m=2
-MP_keep gsw gswb vdd vdd pfet_03v3 w=8u l=0.28u m=2
-RG gsw vss 10meg
-MPASS vres gsw vdd vdd pfet_03v3 w=100u l=0.28u m=40
-CRES vres vss 1n
-XDL1 ck dl1 vres vss fa_clkbuf
-CDL1 dl1 vss 4p
 .ends flash_adc_3bit

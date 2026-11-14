@@ -1,5 +1,5 @@
-* Mutant: An on-chip 50 pF coupling capacitor in front of each base, biased from vocm through 5 kohm, a
-* high-pass at about 0.6 MHz in series with the link's coupling. Fails the input coupling corner.
+* Mutant: An on-chip 20 pF coupling capacitor in front of each base, biased from vocm through 5 kohm, a
+* high-pass at about 1.6 MHz in series with the link's coupling. Fails the input coupling corner.
 .subckt ctle_28g vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn
 XREF iref iref vss vss sg13_lv_nmos w=6u l=0.5u ng=1
 XTP tp iref vss vss sg13_lv_nmos w=360u l=0.5u ng=36
@@ -15,10 +15,10 @@ RCB vcs vss 3.5k
 CCG vcg vss 10p
 RTP vinp vocm 50
 RTN vinn vocm 50
-CIP vinp bpi 50p
+CIP vinp bpi 20p
 RIP bpi vocm 5k
 XQP cp bpi ep vss npn13G2 Nx=8
-CIN vinn bni 50p
+CIN vinn bni 20p
 RIN bni vocm 5k
 XQN cn bni en vss npn13G2 Nx=8
 LPP vddi xp 0.15n

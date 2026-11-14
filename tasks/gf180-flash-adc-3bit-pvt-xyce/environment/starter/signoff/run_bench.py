@@ -10,7 +10,7 @@
 First the eligibility check of /app/spec/README.md runs on /app/circuit.spi (check_circuit.py, the grader's own copy).
 Then Xyce simulates the bench under the rules of /app/spec/signoff-rules.md (xyce_signoff.py, the grader's own copy):
 the circuit is rewritten as in grading, every node voltage and source current goes to a raw file in a scratch folder,
-and the device ratings and stored-energy rule are checked. A broken rule prints a `SIGNOFF RULE:` line and the script
+and the device ratings and junction rule are checked. A broken rule prints a `SIGNOFF RULE:` line and the script
 exits with code 3; a broken rule scores the task 0 in grading. The metrics are computed exactly as grading computes
 them (adc_metrics.py). The public benches cover only the nominal point, so a clean run here is necessary, not
 sufficient.
@@ -50,7 +50,7 @@ def main() -> int:
         for reason in found:
             print(f"  {reason}")
         return 1
-    result = xyce_signoff.run(bench, [(adc_metrics.POWER_FROM, info["power_to"])], keep=keep)
+    result = xyce_signoff.run(bench, keep=keep)
     if keep:
         print(f"kept the rewritten deck, circuit and raw file in {keep}")
     if result.get("rule"):
@@ -65,14 +65,13 @@ def main() -> int:
     print("output_timing:", "ok" if not m["bad_levels"] else
           f"{len(m['bad_levels'])} violations: " + "; ".join(m["bad_levels"][:6]))
     if info["expected"]:
-        want, vin = info["expected"], adc_metrics.transfer_inputs(text)
+        errors = adc_metrics.transfer_errors(text, info, codes)
         for name, kinds in (("transfer_codes", ("center", "edge")), ("overrange_codes", ("overrange",))):
-            wrong = [f"conversion {k} vin={vin[k]:.2f} V read {codes[k - adc_metrics.WARMUP]}, want {want[k]}"
-                     for k in range(adc_metrics.WARMUP, info["conversions"])
-                     if codes[k - adc_metrics.WARMUP] != want[k] and adc_metrics.input_kind(vin[k]) in kinds]
+            wrong = [f"conversion {k} vin={v:.2f} V read {got}, want {want}"
+                     for k, v, want, got, kind in errors if kind in kinds]
             print(f"{name}:", "ok" if not wrong else "; ".join(wrong))
     if info["tone_bin"]:
-        sndr, sfdr = adc_metrics.spectrum(codes, info["tone_bin"])
+        sndr, _ = adc_metrics.spectrum(codes, info["tone_bin"])
         ideal = "22.89 dB" if info["tone_bin"] == 1 else "20.3 dB"
         print(f"SNDR {sndr:.2f} dB (tone bin {info['tone_bin']}; an ideal quantizer gives {ideal} on this record)")
     pins = ", ".join(f"{p} {m[f'power_{p}_w'] * 1e3:.3f}" for p in adc_metrics.PINS)

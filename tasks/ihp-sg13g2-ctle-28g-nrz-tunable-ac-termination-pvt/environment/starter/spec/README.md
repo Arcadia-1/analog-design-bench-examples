@@ -69,7 +69,8 @@ corners (`hbt_wcs`, `res_wcs`, `cap_wcs`), `ff` the fast ones (`hbt_bcs`,
 
 All 16 code combinations are graded at every point; the input impedance at
 `gain=00`/`peak=00`; the disturbance transient at `gain=00`/`peak=00` and
-`gain=11`/`peak=11`. This covers the vertices of the declared supply,
+`gain=11`/`peak=11` at every point, and at every other code at the nominal
+point. This covers the vertices of the declared supply,
 temperature and process ranges, not interior points. Local mismatch and Monte
 Carlo variation, noise, group delay, large-signal behavior, eye or PRBS
 performance, interconnect extraction and package parasitics are not graded.
@@ -81,7 +82,10 @@ reward is the fraction that pass. A check fails if its limit is broken
 anywhere, or if a simulation it needs did not produce its measurements
 (non-convergence, or a broken signoff rule, which also scores the task 0).
 The two stability checks also need a valid operating point (the AC run) at
-the same point and code.
+the same point and code. A circuit with no active path at the nominal point
+(forward/reverse ratio below 6 dB at any code there; any passive network
+reads 0 dB) scores no check. A forward/reverse ratio between 6 and 15 dB
+fails only `forward_reverse_ratio`.
 
 | Check | Requirement |
 |---|---|
@@ -97,7 +101,7 @@ the same point and code.
 | `input_return_loss` | Single-ended `abs(S11)` of each input and differential `abs(Sdd11)` at every code at most -15 dB from 100 MHz to 14 GHz |
 | `common_mode_stability` | Output common mode within 75 mV of `vdd/2` and its peak-to-peak at most 1 mV, from 3.1 to 4.1 us after the disturbances |
 | `differential_stability` | Differential output peak-to-peak at most 1 mV, and `abs(voutp-voutn)` at most 5 mV, from 3.1 to 4.1 us after the disturbances |
-| `bias_and_power` | Output common mode within 75 mV of `vdd/2`, differential offset at most 5 mV, each output between `vss + 0.25 V` and `vdd - 0.25 V`, `vocm` tracking at least 9 mV per 10 mV, DC current into or out of the `vocm` pin at most 100 uA, total power at most 60 mW |
+| `bias_and_power` | Output common mode within 75 mV of `vdd/2`, differential offset at most 5 mV, each output between `vss + 0.25 V` and `vdd - 0.25 V`, `vocm` tracking at least 9 mV per 10 mV, DC current into or out of the `vocm` pin at most 100 uA (also with `vocm` raised 10 mV), the `iref` pin between `vss + 0.2 V` and `vdd - 0.5 V`, total power at most 60 mW |
 
 ## Measurement definitions
 
@@ -147,8 +151,9 @@ the same point and code.
     with no signal;
   - both output loads return to a node that is 0 V at the operating point;
   - that node steps with a 10 ns edge at 100 ns;
-  - before 1 us, a 5 ns common-mode current pulse of about 1 mA enters (or
-    leaves) each output;
+  - from a time before 1 us to the end of the run, a common-mode current
+    step of about 2 mA enters (or leaves) each output, so the common-mode loop
+    must re-servo the outputs;
   - later, a 5 ns differential current pulse of about 1 mA enters one output
     and leaves the other (ngspice `tran 0.5n 4.1u 0 0.5n`).
 
@@ -164,7 +169,10 @@ the same point and code.
     output common mode by at least 9 mV.
   - `vocm` is a reference, not a supply: the DC current the circuit draws
     from or pushes into the `vocm` pin is at most 100 uA (input base current
-    through a termination to `vocm` is a few tens of uA).
+    through a termination to `vocm` is a few tens of uA), checked at both
+    operating points.
+  - The `iref` pin must sit between `vss + 0.2 V` and `vdd - 0.5 V`, the
+    compliance a real reference-current source needs.
   - Total power is the power delivered by `vdd` (`-V(vdd)*I(vdd)`, including
     the 100 uA reference branch) plus the magnitude of the DC power exchanged
     with the `vocm` source and the four control sources. Power drawn from or

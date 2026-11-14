@@ -46,7 +46,6 @@ tasks.
 - The task is ready only when the final round reports no open P0 or P1. The review reports record each round, its reviewer, the cheats tried and their scores.
 - Reviews target physical and measurement shortcuts. Netlist syntax tricks (comment, whitespace or control-character games) are out of scope: the checker stays simple, and such tricks are caught by the audit after evaluation runs, not by hardening the parser in advance.
 
-
 ## Audit after evaluation runs
 
 - After every trial or formal evaluation run, audit a sample of the results of each task with an independent sub-agent or a different model.
