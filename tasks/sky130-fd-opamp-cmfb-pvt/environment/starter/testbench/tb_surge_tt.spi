@@ -1,0 +1,41 @@
+* Supply surge at tt / 1.8 V / 27 C in the gain -1 network with zero input: a
+* +/-50 mV square wave with 10 ns edges rides on VDD at 300 kHz.  Prints, over
+* the last full period, the extremes of the output common mode and the
+* peak-to-peak of Vod, and over the last 10 % of the final half period the
+* peak-to-peak of both, which must be far below a millivolt (ringing that has
+* not decayed before the next edge fails), with the common-mode final value.  Grading also uses 100 kHz and
+* 1 MHz and runs at -40 and 125 C.
+* Run with `ngspice -b testbench/tb_surge_tt.spi`.
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+.options reltol=1e-5 abstol=1e-15 vntol=1e-9 method=gear
+.temp 27
+.param per=3.3333u
+VDD vdd 0 PULSE(1.75 1.85 0.8333u 10n 10n 1.6567u 3.3333u)
+VSS vss 0 0
+IBIAS vdd ibias 10u
+VCM vcm 0 0.9
+R1 vcm inp 100k
+R2 inp outn 100k
+R3 vcm inn 100k
+R4 inn outp 100k
+XDUT vss ibias vdd vcmpin inp inn outp outn fd_opamp
+RVCM vcm vcmpin 1k
+RLP outp vcm 1meg
+CLP outp 0 2p
+RLN outn vcm 1meg
+CLN outn 0 2p
+.control
+set noaskquit
+tran 1n 10.8333u 0 2n
+let vod = v(outp) - v(outn)
+let ocm = 0.5 * (v(outp) + v(outn))
+meas tran ocm_final AVG ocm FROM=10.67u TO=10.8333u
+meas tran ocm_max_v MAX ocm FROM=9.1667u TO=10.8333u
+meas tran ocm_min_v MIN ocm FROM=9.1667u TO=10.8333u
+meas tran ocm_tail_pp_v PP ocm FROM=10.67u TO=10.8333u
+meas tran vod_tail_pp_v PP vod FROM=10.67u TO=10.8333u
+meas tran vod_pp_v PP vod FROM=9.1667u TO=10.8333u
+quit
+.endc
+.end

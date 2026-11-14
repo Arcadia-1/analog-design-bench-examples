@@ -1,0 +1,98 @@
+* Not a single-defect mutant: the plainest textbook design, kept here as a below-1 case.
+* Plainest textbook 3-bit flash ADC: resistor ladder (no tap decoupling), seven StrongARM comparators clocked
+* straight from clk, a NAND SR latch on each comparator's outputs, thermometer -> one-hot AND gates -> ROM
+* (pseudo-NMOS NOR columns with inverters). Rule-of-thumb sizes, minimum device count.
+
+.subckt tb_inv a y vdd vss
+MP y a vdd vdd pfet_03v3 w=2u l=0.28u
+MN y a vss vss nfet_03v3 w=1u l=0.28u
+.ends tb_inv
+
+.subckt tb_nand2 a b y vdd vss
+MP1 y a vdd vdd pfet_03v3 w=2u l=0.28u
+MP2 y b vdd vdd pfet_03v3 w=2u l=0.28u
+MN1 y a nx vss nfet_03v3 w=2u l=0.28u
+MN2 nx b vss vss nfet_03v3 w=2u l=0.28u
+.ends tb_nand2
+
+.subckt tb_comp clk vinp vinn outp outn vdd vss
+* StrongARM: outp/outn precharge high while clk is low; outn falls when vinp > vinn
+MTAIL tail clk vss vss nfet_03v3 w=2u l=0.28u
+MIN1 dx vinp tail vss nfet_03v3 w=2u l=0.28u
+MIN2 dy vinn tail vss nfet_03v3 w=2u l=0.28u
+MNL1 outn outp dx vss nfet_03v3 w=1u l=0.28u
+MNL2 outp outn dy vss nfet_03v3 w=1u l=0.28u
+MPL1 outn outp vdd vdd pfet_03v3 w=1u l=0.28u
+MPL2 outp outn vdd vdd pfet_03v3 w=1u l=0.28u
+MPC1 outn clk vdd vdd pfet_03v3 w=1u l=0.28u
+MPC2 outp clk vdd vdd pfet_03v3 w=1u l=0.28u
+.ends tb_comp
+
+.subckt tb_latch sb rb q vdd vss
+* NAND SR latch, active-low inputs: sb (outn) low sets q, rb (outp) low resets it; both high (precharge) holds
+XG1 sb qb q vdd vss tb_nand2
+XG2 rb q qb vdd vss tb_nand2
+.ends tb_latch
+
+.subckt tb_and a bb y vdd vss
+* y = a AND NOT b, given bb = NOT b
+XN a bb n vdd vss tb_nand2
+XI n y vdd vss tb_inv
+.ends tb_and
+
+.subckt flash_adc_3bit vss vdd vrefn vrefp clk vin b2 b1 b0
+RL1 t1 vrefn 500
+RL2 t2 t1 500
+RL3 t3 t2 500
+RL4 t4 t3 500
+RL5 t5 t4 500
+RL6 t6 t5 500
+RL7 t7 t6 500
+RL8 vrefp t7 500
+XC1 clk vin t1 cp1 cn1 vdd vss tb_comp
+XC2 clk vin t2 cp2 cn2 vdd vss tb_comp
+XC3 clk vin t3 cp3 cn3 vdd vss tb_comp
+XC4 clk vin t4 cp4 cn4 vdd vss tb_comp
+XC5 clk vin t5 cp5 cn5 vdd vss tb_comp
+XC6 clk vin t6 cp6 cn6 vdd vss tb_comp
+XC7 clk vin t7 cp7 cn7 vdd vss tb_comp
+XL1 cn1 cp1 q1 vdd vss tb_latch
+XL2 cn2 cp2 q2 vdd vss tb_latch
+XL3 cn3 cp3 q3 vdd vss tb_latch
+XL4 cn4 cp4 q4 vdd vss tb_latch
+XL5 cn5 cp5 q5 vdd vss tb_latch
+XL6 cn6 cp6 q6 vdd vss tb_latch
+XL7 cn7 cp7 q7 vdd vss tb_latch
+* one-hot h_k = q_k AND NOT q_(k+1); h7 = q7
+XI2 q2 nq2 vdd vss tb_inv
+XI3 q3 nq3 vdd vss tb_inv
+XI4 q4 nq4 vdd vss tb_inv
+XI5 q5 nq5 vdd vss tb_inv
+XI6 q6 nq6 vdd vss tb_inv
+XI7 q7 nq7 vdd vss tb_inv
+XH1 q1 nq2 h1 vdd vss tb_and
+XH2 q2 nq3 h2 vdd vss tb_and
+XH3 q3 nq4 h3 vdd vss tb_and
+XH4 q4 nq5 h4 vdd vss tb_and
+XH5 q5 nq6 h5 vdd vss tb_and
+XH6 q6 nq7 h6 vdd vss tb_and
+* ROM: column j is pulled low by every h_k whose code k has bit j set; a weak PMOS load holds it high otherwise
+MLD2 c2 vss vdd vdd pfet_03v3 w=0.5u l=1u
+MLD1 c1 vss vdd vdd pfet_03v3 w=0.5u l=1u
+MLD0 c0 vss vdd vdd pfet_03v3 w=0.5u l=1u
+MR24 c2 h4 vss vss nfet_03v3 w=1u l=0.28u
+MR25 c2 h5 vss vss nfet_03v3 w=1u l=0.28u
+MR26 c2 h6 vss vss nfet_03v3 w=1u l=0.28u
+MR27 c2 q7 vss vss nfet_03v3 w=1u l=0.28u
+MR12 c1 h2 vss vss nfet_03v3 w=1u l=0.28u
+MR13 c1 h3 vss vss nfet_03v3 w=1u l=0.28u
+MR16 c1 h6 vss vss nfet_03v3 w=1u l=0.28u
+MR17 c1 q7 vss vss nfet_03v3 w=1u l=0.28u
+MR01 c0 h1 vss vss nfet_03v3 w=1u l=0.28u
+MR03 c0 h3 vss vss nfet_03v3 w=1u l=0.28u
+MR05 c0 h5 vss vss nfet_03v3 w=1u l=0.28u
+MR07 c0 q7 vss vss nfet_03v3 w=1u l=0.28u
+XB2 c2 b2 vdd vss tb_inv
+XB1 c1 b1 vdd vss tb_inv
+XB0 c0 b0 vdd vss tb_inv
+.ends flash_adc_3bit

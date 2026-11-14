@@ -1,5 +1,6 @@
 * Reference 3-bit flash ADC (GF180MCU 3.3 V devices, Xyce):
 * - resistor ladder from vrefn to vrefp (8 x 500 ohm, 0.2 V taps) with 2 pF tap decoupling against comparator kickback
+* - 2 pF from vin to vss, which holds the input against the kickback of the seven comparators through the source
 * - a two-inverter clock buffer: the clk pin drives one small inverter gate only
 * - seven StrongARM comparators (evaluate while the buffered clock is high, precharge while low)
 * - a ratioed set/reset latch per comparator that holds the decision through the precharge phase
@@ -71,6 +72,7 @@ RL5 t5 t4 500
 RL6 t6 t5 500
 RL7 t7 t6 500
 RL8 vrefp t7 500
+CVIN vin vss 2p
 CT1 t1 vss 2p
 CT2 t2 vss 2p
 CT3 t3 vss 2p

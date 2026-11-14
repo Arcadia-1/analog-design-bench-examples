@@ -1,0 +1,104 @@
+* Mutant: the 2 pF input capacitor is left out, so the kickback of the seven comparators moves vin
+* through the bench's 50 ohm source. Static codes still read right; sampled sines lose codes.
+* Expected: fails sndr_3mhz and sndr_23mhz.
+
+.subckt fa_inv a y vdd vss
+MP y a vdd vdd pfet_03v3 w=4u l=0.28u
+MN y a vss vss nfet_03v3 w=2u l=0.28u
+.ends fa_inv
+.subckt fa_clkbuf a y vdd vss
+* small input stage (the only load on the clk pin), then a driver for the comparator bank
+MP1 m a vdd vdd pfet_03v3 w=3u l=0.28u
+MN1 m a vss vss nfet_03v3 w=1.5u l=0.28u
+MP2 y m vdd vdd pfet_03v3 w=4u l=0.28u m=4
+MN2 y m vss vss nfet_03v3 w=4u l=0.28u m=2
+.ends fa_clkbuf
+.subckt fa_nand2 a b y vdd vss
+MP1 y a vdd vdd pfet_03v3 w=4u l=0.28u
+MP2 y b vdd vdd pfet_03v3 w=4u l=0.28u
+MN1 y a nx vss nfet_03v3 w=4u l=0.28u
+MN2 nx b vss vss nfet_03v3 w=4u l=0.28u
+.ends fa_nand2
+.subckt fa_nand4 a b c d y vdd vss
+MP1 y a vdd vdd pfet_03v3 w=4u l=0.28u
+MP2 y b vdd vdd pfet_03v3 w=4u l=0.28u
+MP3 y c vdd vdd pfet_03v3 w=4u l=0.28u
+MP4 y d vdd vdd pfet_03v3 w=4u l=0.28u
+MN1 y a n1 vss nfet_03v3 w=4u l=0.28u m=2
+MN2 n1 b n2 vss nfet_03v3 w=4u l=0.28u m=2
+MN3 n2 c n3 vss nfet_03v3 w=4u l=0.28u m=2
+MN4 n3 d vss vss nfet_03v3 w=4u l=0.28u m=2
+.ends fa_nand4
+.subckt fa_comp clk vinp vinn outp outn vdd vss
+* StrongARM latch: outp/outn precharge high, outn falls when vinp > vinn
+MTAIL tail clk vss vss nfet_03v3 w=3u l=0.28u m=4
+MIN1 dx vinp tail vss nfet_03v3 w=4u l=0.28u m=2
+MIN2 dy vinn tail vss nfet_03v3 w=4u l=0.28u m=2
+MNL1 outn outp dx vss nfet_03v3 w=4u l=0.28u
+MNL2 outp outn dy vss nfet_03v3 w=4u l=0.28u
+MPL1 outn outp vdd vdd pfet_03v3 w=4u l=0.28u
+MPL2 outp outn vdd vdd pfet_03v3 w=4u l=0.28u
+MPC1 outn clk vdd vdd pfet_03v3 w=2u l=0.28u
+MPC2 outp clk vdd vdd pfet_03v3 w=2u l=0.28u
+MPC3 dx clk vdd vdd pfet_03v3 w=2u l=0.28u
+MPC4 dy clk vdd vdd pfet_03v3 w=2u l=0.28u
+.ends fa_comp
+.subckt fa_hold outp outn q vdd vss
+* Both comparator outputs go through equal inverters, so the comparator sees the same load whatever the latch
+* holds. Ratioed set/reset latch: s (outn fell) pulls qb low, r (outp fell) pulls qn low, and two weak
+* cross-coupled inverters hold the state through the comparator's precharge phase; q = 1 when outn fell.
+* There are no series stacks, so every node is driven and none can be pumped past a rail.
+XIS outn s vdd vss fa_inv
+XIR outp r vdd vss fa_inv
+MSET qb s vss vss nfet_03v3 w=4u l=0.28u m=2
+MRST qn r vss vss nfet_03v3 w=4u l=0.28u m=2
+MKP1 qn qb vdd vdd pfet_03v3 w=1u l=0.28u
+MKN1 qn qb vss vss nfet_03v3 w=0.5u l=0.28u
+MKP2 qb qn vdd vdd pfet_03v3 w=1u l=0.28u
+MKN2 qb qn vss vss nfet_03v3 w=0.5u l=0.28u
+XO qb q vdd vss fa_inv
+.ends fa_hold
+.subckt flash_adc_3bit vss vdd vrefn vrefp clk vin b2 b1 b0
+XCK clk ck vdd vss fa_clkbuf
+RL1 t1 vrefn 500
+RL2 t2 t1 500
+RL3 t3 t2 500
+RL4 t4 t3 500
+RL5 t5 t4 500
+RL6 t6 t5 500
+RL7 t7 t6 500
+RL8 vrefp t7 500
+CT1 t1 vss 2p
+CT2 t2 vss 2p
+CT3 t3 vss 2p
+CT4 t4 vss 2p
+CT5 t5 vss 2p
+CT6 t6 vss 2p
+CT7 t7 vss 2p
+XC1 ck vin t1 cp1 cn1 vdd vss fa_comp
+XH1 cp1 cn1 q1 vdd vss fa_hold
+XC2 ck vin t2 cp2 cn2 vdd vss fa_comp
+XH2 cp2 cn2 q2 vdd vss fa_hold
+XC3 ck vin t3 cp3 cn3 vdd vss fa_comp
+XH3 cp3 cn3 q3 vdd vss fa_hold
+XC4 ck vin t4 cp4 cn4 vdd vss fa_comp
+XH4 cp4 cn4 q4 vdd vss fa_hold
+XC5 ck vin t5 cp5 cn5 vdd vss fa_comp
+XH5 cp5 cn5 q5 vdd vss fa_hold
+XC6 ck vin t6 cp6 cn6 vdd vss fa_comp
+XH6 cp6 cn6 q6 vdd vss fa_hold
+XC7 ck vin t7 cp7 cn7 vdd vss fa_comp
+XH7 cp7 cn7 q7 vdd vss fa_hold
+* thermometer to binary: b2 = q4; b1 = q2.!q4 + q6; b0 = q1.!q2 + q3.!q4 + q5.!q6 + q7
+XE1 q2 n2 vdd vss fa_inv
+XE2 q4 n4 vdd vss fa_inv
+XE3 q6 n6 vdd vss fa_inv
+XE4 q7 n7 vdd vss fa_inv
+XE5 q2 n4 x1 vdd vss fa_nand2
+XE6 n6 x1 b1 vdd vss fa_nand2
+XE7 q5 n6 y1 vdd vss fa_nand2
+XE8 q3 n4 y2 vdd vss fa_nand2
+XE9 q1 n2 y3 vdd vss fa_nand2
+XE10 n7 y1 y2 y3 b0 vdd vss fa_nand4
+XE11 n4 b2 vdd vss fa_inv
+.ends flash_adc_3bit

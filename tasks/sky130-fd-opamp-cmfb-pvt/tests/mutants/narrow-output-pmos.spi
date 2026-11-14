@@ -1,0 +1,43 @@
+* Mutant of the reference: the output PMOS devices are 14 um wide instead of 30 um, so they leave saturation earlier and the output swing shrinks.
+.subckt fd_opamp vss ibias vdd vcm vinp vinn voutp voutn
+* bias: 10 uA reference into an NMOS diode
+XB0 ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=12.8 nf=4
+XTAIL tail ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=76.8 nf=24
+XT2 t2 ibias vss vss sky130_fd_pr__nfet_01v8 l=8 w=72 nf=18
+* stage 1 (vinp -> o1n inverting)
+XM1 o1n vinp tail vss sky130_fd_pr__nfet_01v8_lvt l=2 w=16 nf=4
+XM2 o1p vinn tail vss sky130_fd_pr__nfet_01v8_lvt l=2 w=16 nf=4
+XM3 o1n c1 vdd vdd sky130_fd_pr__pfet_01v8_lvt l=2 w=144 nf=36
+XM4 o1p c1 vdd vdd sky130_fd_pr__pfet_01v8_lvt l=2 w=144 nf=36
+R1A o1n c1 1meg
+R1B o1p c1 1meg
+* stage 2 (o1n -> dB non-inverting, o1p -> dA non-inverting)
+XA2 dA o1n t2 vss sky130_fd_pr__nfet_01v8_lvt l=0.5 w=8 nf=2
+XB2 dB o1p t2 vss sky130_fd_pr__nfet_01v8_lvt l=0.5 w=8 nf=2
+XL2A dA ce vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+XL2B dB ce vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+* stage 3: LVT PMOS common source, fixed 150 uA NMOS sink
+XM5 voutp dB vdd vdd sky130_fd_pr__pfet_01v8_lvt l=0.5 w=14 nf=4
+XM6 voutn dA vdd vdd sky130_fd_pr__pfet_01v8_lvt l=0.5 w=14 nf=4
+XS5 voutp ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=192 nf=60
+XS6 voutn ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=192 nf=60
+* nested Miller compensation (per half circuit), both capacitors with series resistors
+RM1P voutp m1p 1.5k
+CM1P m1p o1n 4p
+RM2P voutp m2p 6k
+CM2P m2p dB 1.2p
+RM1N voutn m1n 1.5k
+CM1N m1n o1p 4p
+RM2N voutn m2n 6k
+CM2N m2n dA 1.2p
+* CMFB: resistive output-CM sense; error pair; sense-side PMOS diode ce
+RS1 voutp cms 2meg
+RS2 voutn cms 2meg
+CS1 voutp cms 100f
+CS2 voutn cms 100f
+XE0 te ibias vss vss sky130_fd_pr__nfet_01v8 l=8 w=72 nf=18
+XE1 ea vcm te vss sky130_fd_pr__nfet_01v8_lvt l=1 w=32 nf=8
+XE2 ce cms te vss sky130_fd_pr__nfet_01v8_lvt l=1 w=32 nf=8
+XE3 ea ea vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+XE4 ce ce vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+.ends fd_opamp

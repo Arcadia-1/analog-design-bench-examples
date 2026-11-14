@@ -1,0 +1,53 @@
+* Large-signal differential step in the capacitive gain -1 application
+* (1 pF input and feedback capacitors) at tt / 1.8 V / 27 C: each input
+* source steps +/-0.5 V, so Vod steps by 1 V.  A differential servo (ideal sources
+* through switches that open at 200 ns) sets the DC level of the amplifier inputs.  Prints the 10-90 % rise time of Vod and the matching
+* slew rate per output (0.4 V over that time); grading takes the steepest slope instead.
+* Also prints the 0.1 % settling time of both edges around the commanded level.
+* Run with `ngspice -b testbench/tb_step_tt.spi`.
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+.options reltol=1e-6 abstol=1e-15 vntol=1e-9 method=gear
+.temp 27
+VDD vdd 0 1.8
+VSS vss 0 0
+IBIAS vdd ibias 10u
+VCM vcm 0 0.9
+VIP vip vcm PULSE(0 0.5 1u 1n 1n 4u 10u)
+VIN vin vcm PULSE(0 -0.5 1u 1n 1n 4u 10u)
+C1 vip inp 1p
+C2 inp outn 1p
+C3 vin inn 1p
+C4 inn outp 1p
+EP sp vcm outn outp 0.5
+EN sn vcm outp outn 0.5
+SP sp inp hold 0 servo
+SN sn inn hold 0 servo
+VHOLD hold 0 PWL(0 1 100n 1 200n 0)
+.model servo sw vt=0.5 vh=0 ron=1 roff=1e15
+XDUT vss ibias vdd vcmpin inp inn outp outn fd_opamp
+RVCM vcm vcmpin 1k
+RLP outp vcm 1meg
+CLP outp 0 2p
+RLN outn vcm 1meg
+CLN outn 0 2p
+.nodeset v(inp)=0.9 v(inn)=0.9 v(outp)=0.9 v(outn)=0.9
+.control
+set noaskquit
+tran 0.5n 10u 0 1n
+let vod = v(outp) - v(outn)
+meas tran rise_10_90_s TRIG vod VAL=0.1 RISE=1 TARG vod VAL=0.9 RISE=1
+let sr_per_output_v_per_s = 0.4 / rise_10_90_s
+print sr_per_output_v_per_s
+* 0.1 % settling of each edge around the commanded level (start + 1 V, then back to the start)
+meas tran vod_start AVG vod FROM=0.9u TO=1u
+let err_rise = abs(vod - (vod_start + 1))
+let err_fall = abs(vod - vod_start)
+meas tran t_rise WHEN err_rise=1m CROSS=LAST FROM=1u TO=5u
+meas tran t_fall WHEN err_fall=1m CROSS=LAST FROM=5u TO=10u
+let settle_rise_s = t_rise - 1u
+let settle_fall_s = t_fall - 5.001u
+print settle_rise_s settle_fall_s
+quit
+.endc
+.end

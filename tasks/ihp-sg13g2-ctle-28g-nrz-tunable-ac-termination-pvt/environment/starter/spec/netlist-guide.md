@@ -15,7 +15,7 @@ device is a subcircuit, so its instance name starts with `X`. Values take SPICE 
 | `cap_cmim` MIM capacitor | `p n` | `w`, `l` (required, 1.14u-75u), `m` |
 | `sg13_hv_svaricap` MOS varactor | `g1 w g2 bn` | `w` 3.74u-9.74u, `l` 0.3u-0.8u (required), `nx` fingers, `m` |
 
-`bn` is the substrate: tie it to `vss`. `m` and `ng`/`Nx`/`nx` are whole numbers. Examples:
+`bn` is the substrate and, like every NMOS bulk, must connect to `vss` (Netlist rule in `signoff-rules.md`). `m` and `ng`/`Nx`/`nx` are whole numbers. Examples:
 
 ```spice
 XM1 d g s vss sg13_lv_nmos w=20u l=0.13u ng=4
@@ -33,7 +33,6 @@ Notes:
 - `sg13_hv_svaricap` is a differential accumulation-mode varactor: the capacitance between each gate (`g1`, `g2`)
   and the n-well `w` is high when the gate is above the well and low when the well is well above the gate. Between
   `g1` and `g2` the two halves are in series, and `w` sits at the pair's differential virtual ground.
-- Ideal `R`, `C`, `L` and `K` are allowed (see `signoff-rules.md`); PDK resistors and MIM capacitors add their
-  process corners and parasitics.
-- Grading corners: `mos_tt/ss/ff/sf/fs` for MOS and varactors, with `hbt_wcs`, `res_wcs`, `cap_wcs` at `ss`,
-  `hbt_bcs`, `res_bcs`, `cap_bcs` at `ff`, and the typical sections otherwise.
+- PDK resistors and MIM capacitors add their process corners and parasitics; ideal ones do not (what is allowed
+  is the Netlist rule in `signoff-rules.md`).
+- The process corners grading uses are listed under Coverage in `README.md`.

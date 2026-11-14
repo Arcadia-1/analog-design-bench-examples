@@ -5,15 +5,17 @@
 
 The netlist may hold only `.subckt` / `.ends` blocks. Inside them:
 
-- `M<name> d g s b nfet_03v3|pfet_03v3 w=<W> l=<L> [m=<K>] [ad= as= pd= ps=]`, with plain numeric values in metres
+- `M<name> d g s b nfet_03v3|pfet_03v3 w=<W> l=<L> [m=<K>]`, with plain numeric values in metres
   (`w=4u l=0.28u`): 0.22u <= w <= 100u, 0.28u <= l <= 50u, K a whole number >= 1. Use `m` for parallel devices;
-  `nf` and every other instance parameter are refused.
+  `nf`, the diffusion geometry (`ad`, `as`, `pd`, `ps`: signoff sets it from `w`) and every other instance parameter
+  are refused.
 - `R<name> a b <value> [m=<K>]` and `C<name> a b <value> [m=<K>]`: ideal elements with a plain positive value.
 - `X<name> <nodes> <subckt> [m=<K>]`: an instance of a subcircuit defined in the same file, with its pin count.
 
 No sources, switches, behavioral or controlled elements, inductors, models, parameters, includes, options or analyses.
 Every subcircuit must contain at least one element, none may instantiate itself, and the required subcircuit must exist
-with exactly the given name and pin order. Exit code 0 when the netlist passes, 1 otherwise. Standard library only.
+with exactly the given name and pin order. Names (elements, nodes, subcircuits) use letters, digits and `_ . - [ ] < >`.
+Exit code 0 when the netlist passes, 1 otherwise. Standard library only.
 """
 from __future__ import annotations
 
@@ -24,13 +26,13 @@ import sys
 from pathlib import Path
 
 MOS_MODELS = ("nfet_03v3", "pfet_03v3")
-MOS_PARAMS = {"w", "l", "m", "ad", "as", "pd", "ps"}
+MOS_PARAMS = {"w", "l", "m"}
 W_RANGE = (0.22e-6, 100e-6)
 L_RANGE = (0.28e-6, 50e-6)
 SCALE = {"meg": 1e6, "mil": 25.4e-6, "t": 1e12, "g": 1e9, "k": 1e3, "m": 1e-3, "u": 1e-6, "n": 1e-9, "p": 1e-12,
          "f": 1e-15}
 NUMBER_RE = re.compile(r"^([+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)([a-z]*)$", re.I)
-NAME_RE = re.compile(r"^[A-Za-z0-9_.\-\[\]<>#]+$")
+NAME_RE = re.compile(r"^[A-Za-z0-9_.\-\[\]<>]+$")
 
 
 def spice_number(token: str) -> float | None:
@@ -113,6 +115,9 @@ def violations(text: str, required: list[str] | None = None) -> list[str]:
             continue
         if head in names:
             found.append(f"{where}: duplicate element name {words[0]} in {current}")
+        bad_names = [w for w in words if "=" not in w and not NAME_RE.match(w)]
+        if bad_names:
+            found.append(f"{where}: names may use letters, digits and _ . - [ ] < > only, not {' '.join(bad_names)}")
         names.add(head)
         kind = head[0]
         params = {}
@@ -136,12 +141,9 @@ def violations(text: str, required: list[str] | None = None) -> list[str]:
                 continue
             extra = sorted(set(params) - MOS_PARAMS)
             if extra:
-                found.append(f"{where}: {positional[4]} takes w, l, m, ad, as, pd and ps only, not {', '.join(extra)}"
-                             + (" (use m for parallel devices)" if "nf" in extra else ""))
-            for key in params.keys() & {"ad", "as", "pd", "ps"}:
-                v = spice_number(params[key])
-                if v is None or v < 0:
-                    found.append(f"{where}: {key}={params[key]} must be a plain non-negative number")
+                found.append(f"{where}: {positional[4]} takes w, l and m only, not {', '.join(extra)}"
+                             + (" (use m for parallel devices)" if "nf" in extra else "")
+                             + (" (signoff sets the diffusion geometry from w)" if set(extra) & {"ad", "as", "pd", "ps"} else ""))
             w, l = spice_number(params.get("w", "")), spice_number(params.get("l", ""))
             if w is None or l is None:
                 found.append(f"{where}: {positional[4]} needs plain numeric w and l in metres (e.g. w=4u l=0.28u)")

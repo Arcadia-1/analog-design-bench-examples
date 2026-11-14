@@ -16,9 +16,12 @@ SETTLE = 3e-9              # outputs valid from this long after the edge ...
 READ = 19e-9               # ... to the read instant
 LOW_MAX, HIGH_MIN = 0.2, 0.8  # valid logic levels, as fractions of vdd
 POWER_FROM = 50e-9         # power windows start at the third rising edge
-# pin -> (node, bench source whose current flows into that pin)
-PINS = {"vdd": ("VDD", "VSUP"), "vrefp": ("VREFP", "VRP"), "vrefn": ("VREFN", "VRN"), "clk": ("CLK", "VCK"),
-        "vin": ("VIN", "VSIG")}
+# pin -> (node, bench source whose current flows into that pin, rectify?). The supply and reference rails only
+# source current, so their net v*i is the cost. clk and vin swing and are fed through a series resistor, so a
+# capacitive or resistive load there sloshes energy back and nets to ~0; for them the cost is the energy delivered
+# into the pin, the positive part of v*i, which a reactive load cannot hide.
+PINS = {"vdd": ("VDD", "VSUP", False), "vrefp": ("VREFP", "VRP", False), "vrefn": ("VREFN", "VRN", False),
+        "clk": ("CLK", "VCK", True), "vin": ("VIN", "VSIG", True)}
 
 
 def bench_info(text: str) -> dict:
@@ -27,7 +30,7 @@ def bench_info(text: str) -> dict:
     stop = re.search(r"(?mi)^\.tran\s+\S+\s+(\S+)", text).group(1)
     stop = float(stop.lower().replace("n", "e-9"))
     expected = re.search(r"(?m)^\* expected codes[^:]*: (.*)$", text)
-    sine = re.search(r"(?mi)^VSIG vin vss SIN\(\S+ \S+ (\S+)", text)
+    sine = re.search(r"(?mi)^VSIG \S+ vss SIN\(\S+ \S+ (\S+)", text)
     conversions = int(round((stop - 1e-9 - FIRST_EDGE) / PERIOD))
     info = {"vdd": vdd, "stop": stop, "conversions": conversions, "power_to": stop - 1e-9,
             "expected": [int(c) for c in expected.group(1).split()] if expected else None, "tone_bin": None}
@@ -35,6 +38,22 @@ def bench_info(text: str) -> dict:
         freq = float(sine.group(1).lower().replace("meg", "e6"))
         info["tone_bin"] = round(freq / (1 / PERIOD) * (conversions - WARMUP))
     return info
+
+
+VREFN_V, VREFP_V, LSB_V = 1.0, 2.6, 0.2
+
+
+def transfer_inputs(text: str) -> list[float]:
+    """The source value of every conversion of a transfer bench (its PWL holds one value per conversion)."""
+    first = float(re.search(r"PWL\(0 (\S+)", text).group(1))
+    return [first] + [float(v) for v in re.findall(r"(?m)^\+ \d+n \S+ \d+\.2n ([-\d.]+)", text)]
+
+
+def input_kind(volts: float) -> str:
+    """'overrange' outside vrefn..vrefp, 'center' at a code center, else 'edge' (0.3 LSB from a threshold)."""
+    if volts < VREFN_V or volts > VREFP_V:
+        return "overrange"
+    return "center" if abs((volts - VREFN_V) / LSB_V % 1 - 0.5) < 1e-6 else "edge"
 
 
 def _column(names: list[str], data: np.ndarray, name: str) -> np.ndarray:
@@ -71,10 +90,15 @@ def evaluate(names: list[str], data: np.ndarray, info: dict) -> dict:
                 bad.append(f"conversion {k} b{bit} rose to {span.max():.3f} V")
         codes.append(code)
     power = {}
-    for pin, (node, source) in PINS.items():
+    for pin, (node, source, rectify) in PINS.items():
         p = -_column(names, data, node) * _column(names, data, f"{source}#BRANCH")
+        if rectify:
+            p = np.maximum(p, 0.0)
         power[pin] = _window_avg(t, p, POWER_FROM, info["power_to"])
-    return {"codes": codes, "bad_levels": bad, "power_w": sum(power.values()),
+    # a bit that never leaves one logic level across the scored conversions is stuck, not converting
+    stuck = [f"b{bit}" for bit in (2, 1, 0)
+             if not (any(c & (1 << bit) for c in codes) and any(not c & (1 << bit) for c in codes))]
+    return {"codes": codes, "bad_levels": bad, "stuck_bits": stuck, "power_w": sum(power.values()),
             **{f"power_{pin}_w": v for pin, v in power.items()}}
 
 

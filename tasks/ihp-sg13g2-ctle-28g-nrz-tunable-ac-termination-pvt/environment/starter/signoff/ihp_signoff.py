@@ -23,6 +23,8 @@ VIOLATIONS = []
 
 NOT_CONVERGED = re.compile(r"timestep too small|simulation\(s\) aborted|operating point could not be simulated", re.I)
 RETRY_OPTIONS = ".options gminsteps=50 srcsteps=50 itl1=1000 itl2=500 itl4=200"
+RUN_TIMEOUT_S = 300  # a run still going after this is stopped and gives no measurements
+TIMED_OUT = 124
 INCLUDE = re.compile(r'^\s*\.include\s+"?([^"\s]+)"?\s*$', re.I | re.M)
 DUT = re.compile(r"^\s*(xdut)\s+(.+?)\s+" + TOP + r"\s*$", re.I | re.M)
 
@@ -141,7 +143,9 @@ def run(cmd, cwd, **kwargs):
         devices = prepare(deck_path, cwd)
     except RuleError as error:
         return fail(cmd, run_name, str(error))
-    result = subprocess.run(cmd, cwd=cwd, **kwargs)
+    result = simulate(cmd, cwd, kwargs)
+    if result.returncode == TIMED_OUT:
+        return result  # a run that hit the time limit is not retried
     if result.returncode != 0 or NOT_CONVERGED.search(result.stdout or ""):
         # One retry with more gmin and source stepping and more iterations.
         deck = deck_path.read_text()
@@ -150,7 +154,7 @@ def run(cmd, cwd, **kwargs):
         deck_path.write_text(deck.replace("\n.control\n", "\n" + RETRY_OPTIONS + "\n.control\n"))
         for stale in Path(cwd).glob("signoff_*.raw"):
             stale.unlink()
-        result = subprocess.run(cmd, cwd=cwd, **kwargs)
+        result = simulate(cmd, cwd, kwargs)
         if result.returncode != 0:
             return result
     try:
@@ -161,6 +165,13 @@ def run(cmd, cwd, **kwargs):
     except (RuleError, ValueError, IndexError) as error:
         return fail(cmd, run_name, f"ratings: {error}", result.stdout)
     return result
+
+
+def simulate(cmd, cwd, kwargs):
+    try:
+        return subprocess.run(cmd, cwd=cwd, timeout=RUN_TIMEOUT_S, **kwargs)
+    except subprocess.TimeoutExpired:
+        return subprocess.CompletedProcess(cmd, TIMED_OUT, stdout=f"run stopped after {RUN_TIMEOUT_S} s\n", stderr="")
 
 
 def fail(cmd, run_name, message, stdout=""):

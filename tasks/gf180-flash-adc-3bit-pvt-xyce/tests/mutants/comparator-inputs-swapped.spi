@@ -1,5 +1,5 @@
 * Mutant: every comparator has vin and its ladder tap swapped, so the thermometer code is inverted.
-* Expected: fails the nominal transfer gate.
+* Expected: fails transfer_codes, overrange_codes, sndr_3mhz and sndr_23mhz; power is not credited.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
@@ -67,6 +67,7 @@ RL5 t5 t4 500
 RL6 t6 t5 500
 RL7 t7 t6 500
 RL8 vrefp t7 500
+CVIN vin vss 2p
 CT1 t1 vss 2p
 CT2 t2 vss 2p
 CT3 t3 vss 2p

@@ -1,0 +1,37 @@
+schema_version = "1.3"
+artifacts = ["/app/circuit.spi"]
+
+[task]
+name = "analog-arena/sky130-fd-opamp-cmfb-pvt"
+description = "Design a Sky130 fully differential op amp with continuous-time common-mode feedback that meets op-amp signoff limits on gain, unity-gain frequency, stability, slew, settling, swing, rejection, noise, distortion, offset and supply current across PVT, load and mismatch."
+authors = [{ name = "Token Zhang" }]
+
+[metadata]
+category = "Hardware, Embedded, and Low-Level Systems"
+subcategory = "Analog and mixed-signal circuit design"
+task_objective = ["Implement"]
+artifact_type = ["Hardware or firmware artifact"]
+
+[agent]
+timeout_sec = 7200.0
+user = "agent"
+
+[verifier]
+timeout_sec = 3600.0
+user = "root"
+environment_mode = "separate"
+
+[verifier.environment]
+network_mode = "no-network"
+build_timeout_sec = 900.0
+cpus = 4
+memory_mb = 8192
+storage_mb = 10240
+
+[environment]
+network_mode = "no-network"
+build_timeout_sec = 900.0
+cpus = 4
+memory_mb = 8192
+storage_mb = 10240
+workdir = "/app"

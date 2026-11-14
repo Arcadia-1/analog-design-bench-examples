@@ -1,6 +1,6 @@
 * Mutant: ladder of 8 x 75 ohm instead of 8 x 500 ohm. The conversion still works (the 10 ohm reference
 * source resistance moves the end taps by about 0.13 LSB), but the ladder alone draws about 4 mW.
-* Expected: fails only power_2p5mw.
+* Expected: fails only power.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
@@ -68,6 +68,7 @@ RL5 t5 t4 75
 RL6 t6 t5 75
 RL7 t7 t6 75
 RL8 vrefp t7 75
+CVIN vin vss 2p
 CT1 t1 vss 2p
 CT2 t2 vss 2p
 CT3 t3 vss 2p

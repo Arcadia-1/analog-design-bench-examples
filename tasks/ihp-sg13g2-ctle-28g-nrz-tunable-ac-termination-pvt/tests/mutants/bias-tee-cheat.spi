@@ -1,0 +1,70 @@
+* Mutant: No CMFB: the outputs are held at vocm by 100 H ideal chokes, the internal rail comes from vdd
+* through 280 ohm and a 1 mF ideal capacitor holds it as an AC ground. It biases and settles perfectly in
+* simulation but is not buildable on a die. Fails the netlist rule (ideal L at most 5 nH, ideal C at most 50
+* pF), so the task scores 0.
+.subckt ctle_28g vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn
+XREF iref iref vss vss sg13_lv_nmos w=6u l=0.5u ng=1
+XTP tp iref vss vss sg13_lv_nmos w=360u l=0.5u ng=36
+XTCP ep vcg tp vss sg13_lv_nmos w=80u l=0.13u ng=16
+XTN tn iref vss vss sg13_lv_nmos w=360u l=0.5u ng=36
+XTCN en vcg tn vss sg13_lv_nmos w=80u l=0.13u ng=16
+XBN xbn iref vss vss sg13_lv_nmos w=6u l=0.5u ng=1
+XBC pbd vocm xbn vss sg13_hv_nmos w=4u l=0.45u ng=1
+XBPD pbd pbd vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
+XBPC vcg pbd vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
+XCREP vcg vcg vcs vss sg13_lv_nmos w=2u l=0.13u ng=1
+RCB vcs vss 3.5k
+CCG vcg vss 10p
+RTP vinp vocm 50
+RTN vinn vocm 50
+XQP cp vinp ep vss npn13G2 Nx=8
+XQN cn vinn en vss npn13G2 Nx=8
+LPP vddi xp 0.15n
+RLP xp cp 45
+LOP cp voutn 0.2n
+LPN vddi xn 0.15n
+RLN xn cn 45
+LON cn voutp 0.2n
+RS0 ep en 345
+RG1A ep g1a 643
+XG1A g1a gain_b1 g1b vss sg13_hv_nmos w=20u l=0.45u ng=4
+XG1B g1a gain_b0 g1b vss sg13_hv_nmos w=20u l=0.45u ng=4
+RG1B g1b en 643
+RG2A ep g2a 491
+XG2 g2a gain_b1 g2b vss sg13_hv_nmos w=20u l=0.45u ng=4
+RG2B g2b en 491
+RG3A ep g3a 386
+XG3A g3a gain_b1 g3m vss sg13_hv_nmos w=40u l=0.45u ng=8
+XG3B g3m gain_b0 g3b vss sg13_hv_nmos w=40u l=0.45u ng=8
+RG3M g3m vss 1meg
+RG3B g3b en 386
+XN1PA n1 peak_b0 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XN1PB w1 peak_b1 n1 vdd sg13_hv_pmos w=2u l=0.5u ng=1
+RN1 n1 vdd 1meg
+XN1NA w1 peak_b0 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+XN1NB w1 peak_b1 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+XI2P w2 peak_b1 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XI2N w2 peak_b1 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+XN3PA w3 peak_b0 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XN3PB w3 peak_b1 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XN3NA w3 peak_b0 n3 vss sg13_hv_nmos w=1u l=0.5u ng=1
+XN3NB n3 peak_b1 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+RN3 n3 vss 1meg
+RW1 w1 w1f 20k
+RW2 w2 w2f 20k
+CW1 w1f vss 1p
+CW2 w2f vss 1p
+XV1 ep w1f en vss sg13_hv_svaricap w=9.74u l=0.8u nx=3
+XV2 ep w2f en vss sg13_hv_svaricap w=9.74u l=0.7u nx=5
+XA3P a3 w3 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XA3N a3 w3 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+CT3P ep t3p 170f
+XST3 t3p a3 t3n vss sg13_hv_nmos w=80u l=0.45u ng=16
+CT3N t3n en 170f
+RT3P t3p vss 20k
+RT3N t3n vss 20k
+RRAIL vdd vddi 280
+LCP voutp vocm 100
+LCN voutn vocm 100
+CAC vddi vss 1m
+.ends ctle_28g

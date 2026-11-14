@@ -1,0 +1,31 @@
+* Phase reversal at tt / 1.8 V / 27 C: Vid swept from -1.8 to +1.8 V across the
+* inputs (100 kohm from each input to VCM sets their common mode), each output
+* returned to VCM through 1 kohm.  Iout = (Vop - Von) / 1 kohm must have the
+* sign of Vid wherever abs(Vid) > 50 mV (around the null): iout_min_pos_a must
+* be > 0 and iout_max_neg_a < 0.  Grading runs the same sweep at the nominal
+* point and checks every sample.
+* Run with `ngspice -b testbench/tb_phase_reversal_tt.spi`.
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+.options reltol=1e-7 abstol=1e-16 vntol=1e-10
+.temp 27
+VDD vdd 0 1.8
+VSS vss 0 0
+IBIAS vdd ibias 10u
+VCM vcm 0 0.9
+R1 inp vcm 100k
+R2 vcm inn 100k
+VID inp inn DC 0
+XDUT vss ibias vdd vcmpin inp inn outp outn fd_opamp
+RVCM vcm vcmpin 1k
+RGP outp vcm 1k
+RGN outn vcm 1k
+.control
+set noaskquit
+dc vid -1.8 1.8 0.01
+let iout = (v(outp) - v(outn)) / 1k
+meas dc iout_min_pos_a MIN iout FROM=0.05 TO=1.8
+meas dc iout_max_neg_a MAX iout FROM=-1.8 TO=-0.05
+quit
+.endc
+.end

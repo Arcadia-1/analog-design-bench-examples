@@ -60,8 +60,11 @@ product of the sets below, not a representative subset.
 ## Scored checks
 
 Each check passes or fails, and must pass at every point it covers; the reward
-is the fraction of the 10 checks that pass. A broken rule of
-[`signoff-rules.md`](signoff-rules.md) scores 0.
+is the fraction of the 10 checks that pass, with two exceptions that score 0:
+a broken rule of [`signoff-rules.md`](signoff-rules.md), and a circuit that is
+not a reference, which here means one that fails `vref_accuracy` or
+`line_regulation` (an output outside the window, or one that follows the
+supply, is not graded on its other properties).
 
 | Check | Requirement |
 |---|---|
@@ -71,8 +74,8 @@ is the fraction of the 10 checks that pass. A broken rule of
 | `load_regulation` | Drawing 10 µA from `vref` changes it by at most 5 mV |
 | `psrr_10khz` | Supply rejection at 10 kHz at least 40 dB |
 | `noise_10khz` | Output noise density at 10 kHz at most 1 µV/√Hz |
-| `quiescent_current` | Current taken from the supply and the enable source at most 100 µA at every DC point |
-| `shutdown` | With the enable source at 0 V: at most 1 µA from the supply and enable source together, and `vref` at most 0.1 V |
+| `quiescent_current` | \|current of the supply\| + \|current of the enable source\| at most 100 µA at every DC point |
+| `shutdown` | With the enable source at 0 V: at most 1 µA through the supply and at most 1 µA through the enable source, each in either direction, and `vref` at most 0.1 V |
 | `startup_settling` | After every startup stimulus `vref` settles within ±5 mV of the target in 10 µs; and the operating point does not depend on the initial guess |
 | `startup_overshoot` | After every startup stimulus `vref` never exceeds the target by more than 50 mV |
 
@@ -84,13 +87,17 @@ Measurement definitions:
   and temperature.
 - **Load regulation** compares the operating points with 0 and 10 µA drawn
   from `vref` to `vss`, at the same corner, supply and temperature.
-- **Supply rejection**: AC analysis with a 1 V AC source in series with `vdd`
-  (the enable source has none); PSRR = −20·log10 |v(`vref`)| at 10 kHz.
+- **Supply rejection**: AC analysis with the same 1 V AC excitation on the
+  `vdd` source and on the enable source (the enable pin sits at the supply
+  when enabled, so its ripple is supply ripple); PSRR = −20·log10 |v(`vref`)|
+  at 10 kHz.
 - **Output noise**: VACASK noise analysis, the square root of the total
   output noise power spectral density at `vref` at 10 kHz, from the noise
   sources of every device.
-- **Quiescent current** = current out of the supply source plus current out of
-  the enable source, at each DC operating point.
+- **Quiescent current** = |current of the supply source| + |current of the
+  enable source|, at each DC operating point. Each pin is metered on its own
+  magnitude, so current that leaves through one source cannot cancel current
+  drawn from the other.
 - **Startup target**: the operating point of the circuit with the supply and
   the enable source at their final DC values, at the same corner, supply,
   temperature and load capacitance, computed in the same bench before the
@@ -98,14 +105,22 @@ Measurement definitions:
   on the enable source) and runs until 30 µs after the end of the stimulus
   edge. Settling time is the last time `vref` is more than 5 mV from the
   target, measured from the end of the edge (the end of the supply ramp or of
-  the 100 ns enable edge); a run that ends outside the band fails. Overshoot
+  the 100 ns enable edge); a run that ends outside the band fails. The target
+  must itself lie in the 1.00-1.15 V window and agree within 1 mV with the DC
+  bench's `vref` at the same corner, supply and temperature, or
+  `startup_settling` fails. Overshoot
   is the largest `vref` − target from the end of the edge on. During a supply
   ramp, before it ends, `vref` is not graded.
 - **Initial guess**: at -40 C, 27 C and 125 C the DC bench solves the
   operating point twice more, with the initial guess `vref` = 0 V and
   `vref` = `vdd`. The two results and the DC sweep's result must agree within
   1 mV, or `startup_settling` fails.
-- **Why these limits.** 100 ppm/C is the usual class of an untrimmed
+- **Why these limits.** The 1.00-1.15 V window brackets the zero-TC output of
+  these SiGe HBTs: their VBIC cards extrapolate Vbe to about 1.05-1.06 V at
+  0 K (`ea` = 1.056 eV for `npn13G2`), which puts the first-order bandgap
+  output near 1.04-1.10 V depending on current density and topology; the
+  window allows that spread over all corners without asking for a scaled
+  output. 100 ppm/C is the usual class of an untrimmed
   first-order bandgap over -40 C to 125 C; the spread of the HBT saturation
   current and of the resistor sheet resistance across the corners moves the
   zero-TC point, and no trim is available. 1 mV/V is 0.1 %/V. 40 dB at 10 kHz,
@@ -120,19 +135,10 @@ supplies, temperatures or corners outside the sets above.
 
 ## Deliverable and eligibility
 
-- Edit `/app/circuit.sim`, written in VACASK's netlist language as
-  [`netlist-guide.md`](netlist-guide.md) describes: IHP SG13G2 HV and LV MOS
-  devices, the `npn13G2`, `npn13G2l` and `npn13G2v` HBTs, `rppd`, `rsil` and
-  `rhigh` resistors and `cap_cmim` capacitors, with plain numeric parameters,
-  and helper subcircuits defined in the same file. Sources, ideal or
-  behavioral elements, models, includes, parameters, expressions and control
-  statements are not allowed. Keep the supply, enable source and loads out of
-  the circuit.
-- Before simulation the grader runs the check below; a failure scores 0.
-
-  ```bash
-  python3 /app/signoff/check_circuit.py /app/circuit.sim --require-subcircuit bandgap vdd vss en vref
-  ```
+Edit `/app/circuit.sim`. What it may contain, and the eligibility check the
+grader runs before any simulation (a failure scores 0), are in
+[`netlist-guide.md`](netlist-guide.md). Keep the supply, the enable source and
+the loads out of the circuit.
 
 ## Public benches
 

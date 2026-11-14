@@ -1,7 +1,7 @@
 # 28 Gb/s NRZ tunable CTLE (IHP SG13G2): specification
 
-This folder is the complete public contract. Rules are stated once: the
-electrical contract here, the simulation rules in
+This folder is the complete public contract. Each rule is stated once: the
+electrical contract here, the simulation and netlist rules in
 [`signoff-rules.md`](signoff-rules.md), and the device syntax in
 [`netlist-guide.md`](netlist-guide.md).
 
@@ -14,11 +14,14 @@ with exactly that pin order.
 - `iref`: a 100 uA reference current from `vdd` into this pin. It is the only
   bias input; deriving the internal bias currents from it is intended but not
   scored.
-- `vocm`: the common-mode reference, `vdd/2`. The input termination may
-  return to it, and the output common mode must track it.
-- `vinp`, `vinn`: differential input from the channel. `voutp`, `voutn`:
-  differential output, non-inverting (`voutp - voutn` in phase with
-  `vinp - vinn` at low frequency).
+- `vocm`: the common-mode reference, `vdd/2`. The output common mode must
+  track it, and the input termination may return to it.
+- `vinp`, `vinn`: differential input from the channel. As in a real link, the
+  channel reaches the pins through AC-coupling capacitors on the board
+  (100 nF, part of the test bench, not of the circuit), so the circuit sets
+  its own input common mode, for example by returning its termination to
+  `vocm`. `voutp`, `voutn`: differential output, non-inverting
+  (`voutp - voutn` in phase with `vinp - vinn` at low frequency).
 - `gain_b1:gain_b0`, `peak_b1:peak_b0`: static 2-bit codes at `vss` or `vdd`
   levels, fixed during each analysis.
 
@@ -34,11 +37,13 @@ hierarchy or connectivity.
 
 - `vocm` is driven from `vdd/2` through 10 ohm. Each control pin is driven
   from its logic level (`vss` or `vdd`) through 1 kohm.
-- Each input is driven through 50 ohm from a source whose DC level is the
-  `vocm` source voltage. The AC amplitudes are +1 V on the `vinp` side and
-  -1 V on the `vinn` side (2 V differential open-circuit), so a matched 100 ohm
-  differential input receives exactly 1 V.
-- Each output is loaded by 200 fF to `vss`.
+- Each input is driven from a 50 ohm source through a 100 nF series
+  capacitor (the link's AC coupling). The AC amplitudes are +1 V on the
+  `vinp` side and -1 V on the `vinn` side (2 V differential open-circuit), so
+  a matched 100 ohm differential input receives exactly 1 V.
+- Each output is loaded by a capacitor to `vss`: 200 fF at the points listed
+  under Coverage. The load of a real receiver varies, so grading also uses
+  other loads between 180 and 220 fF (below).
 - AC analysis runs from 100 Hz to 40 GHz at 20 points per decade (ngspice
   `ac dec 20 100 40g`).
 - Gain is `G(f) = 20 log10(abs(v(voutp)-v(voutn)) / 1 V)`. `G_LF = G(1 MHz)`,
@@ -48,74 +53,87 @@ hierarchy or connectivity.
 
 ## Coverage
 
-Grading runs the nominal point (`tt`, 3.30 V, 27 C) and every corner (`tt`,
-`ss`, `ff`, `sf`, `fs`) at both ends of the supply range (2.97 V and 3.63 V)
-and both ends of the junction-temperature range of an operating transceiver
-(27 C and 125 C): 21 points. A corner sets the lv and hv MOS and varactor
-models to that MOS corner; `ss` also takes the slow HBT, high resistor and
-high capacitor corners (`hbt_wcs`, `res_wcs`, `cap_wcs`), `ff` the fast ones
-(`hbt_bcs`, `res_bcs`, `cap_bcs`), and `tt`, `sf` and `fs` the typical ones.
+Grading runs:
+
+- the nominal point (`tt`, 3.30 V, 27 C);
+- every corner (`tt`, `ss`, `ff`, `sf`, `fs`) at both ends of the supply
+  range (2.97 V and 3.63 V) and both ends of the junction-temperature range
+  of a commercial transceiver (0 C and 125 C);
+- two output loads in 180-220 fF at the nominal corner, supply and
+  temperature. Their values are not published.
+
+That is 23 points. A corner sets the lv and hv MOS and varactor models to that
+MOS corner; `ss` also takes the slow HBT, high resistor and high capacitor
+corners (`hbt_wcs`, `res_wcs`, `cap_wcs`), `ff` the fast ones (`hbt_bcs`,
+`res_bcs`, `cap_bcs`), and `tt`, `sf` and `fs` the typical ones.
+
 All 16 code combinations are graded at every point; the input impedance at
 `gain=00`/`peak=00`; the disturbance transient at `gain=00`/`peak=00` and
-`gain=11`/`peak=11`. This covers the vertices of the declared ranges, not
-interior points. Junction temperatures below 27 C, local mismatch and Monte
+`gain=11`/`peak=11`. This covers the vertices of the declared supply,
+temperature and process ranges, not interior points. Local mismatch and Monte
 Carlo variation, noise, group delay, large-signal behavior, eye or PRBS
 performance, interconnect extraction and package parasitics are not graded.
 
-Grading starts with the nominal point. If any check fails there, every check
-fails and the other points are not run.
-
 ## Scored checks
 
-Each check passes or fails; the reward is the fraction that pass. Every limit
-applies at every graded point and code.
+Each check passes or fails on its own, over every graded point and code; the
+reward is the fraction that pass. A check fails if its limit is broken
+anywhere, or if a simulation it needs did not produce its measurements
+(non-convergence, or a broken signoff rule, which also scores the task 0).
+The two stability checks also need a valid operating point (the AC run) at
+the same point and code.
 
 | Check | Requirement |
 |---|---|
 | `gain_code_table` | `G_LF` within 1.5 dB of -12, -10, -8, -6 dB for gain codes 00, 01, 10, 11; each successive gain code raises `G_LF` by at least 1 dB at every peak code |
-| `peak_code_table` | `G_14` within 2 dB of 0, +2, +4, +6 dB for peak codes 00, 01, 10, 11; each successive peak code raises `G_14` by at least 1 dB at every gain code |
+| `peak_code_table` | `G_14` within 1.5 dB of 0, +2, +4, +6 dB for peak codes 00, 01, 10, 11; each successive peak code raises `G_14` by at least 1 dB at every gain code |
 | `output_polarity` | The 1 MHz differential gain is non-inverting (positive real part) |
-| `inband_flatness` | From 1 MHz to 14 GHz, `G` at most 1 dB above the larger of `G_LF` and `G_14`, and never below `G_LF - 6 dB` |
+| `inband_flatness` | From 1 MHz to 14 GHz, `G` at most 1 dB above the larger of `G_LF` and `G_14`, and never below `G_LF - 3 dB` |
 | `above_nyquist_peaking` | From 14 GHz to 40 GHz, `G` at most 3 dB above `G_14` |
 | `bandwidth_floor` | The first falling crossing of `G_14 - 3 dB` above 14 GHz is at 25 GHz or higher; a response still above it at 40 GHz passes |
 | `forward_reverse_ratio` | `R(f)` at least 15 dB from 100 MHz to 14 GHz |
-| `input_coupling_corner` | DC transfer at most 1 mV at every code; low-frequency corner at most 20 kHz |
+| `input_coupling_corner` | Low-frequency corner, with the link's 100 nF capacitors, at most 20 kHz |
 | `input_termination_impedance` | Single-ended input impedance at 1 MHz from 40 to 60 ohm at each input |
 | `input_return_loss` | Single-ended `abs(S11)` of each input and differential `abs(Sdd11)` at every code at most -15 dB from 100 MHz to 14 GHz |
-| `common_mode_stability` | Output common-mode peak-to-peak at most 1 mV from 3.1 to 4.1 us after the disturbances |
+| `common_mode_stability` | Output common mode within 75 mV of `vdd/2` and its peak-to-peak at most 1 mV, from 3.1 to 4.1 us after the disturbances |
 | `differential_stability` | Differential output peak-to-peak at most 1 mV, and `abs(voutp-voutn)` at most 5 mV, from 3.1 to 4.1 us after the disturbances |
-| `bias_and_power` | Output common-mode error at most 75 mV, differential offset at most 5 mV, each output between `vss + 0.25 V` and `vdd - 0.25 V`, `vocm` tracking at least 9 mV per 10 mV, total power at most 60 mW |
+| `bias_and_power` | Output common mode within 75 mV of `vdd/2`, differential offset at most 5 mV, each output between `vss + 0.25 V` and `vdd - 0.25 V`, `vocm` tracking at least 9 mV per 10 mV, DC current into or out of the `vocm` pin at most 100 uA, total power at most 60 mW |
 
 ## Measurement definitions
 
-- **Code tables.** Both controls use uniform 2 dB steps. The low-frequency
-  gain is set by resistor ratios and holds 1.5 dB; the Nyquist gain depends
-  on device transconductance and on varactor or switch capacitance, which
-  move it by about 1.5 dB across the graded points, so its window is 2 dB.
-  The 1 dB minimum step keeps every code distinct at every point. The Nyquist
-  boost `G_14 - G_LF` spans 6 to 18 dB, the range a 28 Gb/s NRZ receiver
-  typically asks of its CTLE.
+- **Code tables.** The receiver's adaptation loop searches the gain and peak
+  codes in order and expects each one on a 2 dB grid. Both controls are held
+  to the same accuracy:
+  - every code within ±1.5 dB of its grid value, less than one step, so a
+    code is always nearer its own target than its neighbour's;
+  - each code at least 1 dB above the previous one, so the search stays
+    monotonic.
+
+  Over the four codes, the Nyquist boost `G_14 - G_LF` spans 6 to 18 dB, the
+  range a 28 Gb/s NRZ receiver typically asks of its CTLE.
 - **Bandwidth.** 25 GHz, about 0.9 times the 28 GBd symbol rate, keeps the
   equalizer's own roll-off above Nyquist from adding intersymbol interference
   that the receiver would have to equalize again.
 - **Polarity.** The real part of `v(voutp)-v(voutn)` at 1 MHz must be
   positive, so an inverted output fails.
-- **Return loss.** Single-ended: with `gain=00`/`peak=00`, a 1 A AC current is
-  injected into one input while the other is terminated in 50 ohm to the
-  `vocm` pin; `Z = v(pin) - v(vocm)` and `S11 = (Z - 50)/(Z + 50)`, each pin in
-  its own run. Differential: `Sdd11 = (v(vinp) - v(vinn)) - 1 V` from the AC
-  run, the reflected fraction of the 1 V incident differential wave. -15 dB
-  up to Nyquist at the die leaves room for the package and ESD parasitics
-  that the receiver's pin-level return-loss budget must also cover, and a
-  SiGe input with its small device capacitance reaches it without a T-coil.
-- **Input coupling.** The signal path must be AC-coupled; the termination may
-  be DC- or AC-coupled to `vocm`. DC transfer: stepping the input sources' DC
-  levels by +50 mV and -50 mV must change `v(voutp)-v(voutn)` by at most 1 mV
-  (a DC-coupled path at the lowest gain changes it by at least 10.6 mV).
-  Corner: with `gain=00`/`peak=00`, a rising crossing of `G_LF - 3 dB` below
-  2 MHz must be at most 20 kHz (a 100 nF coupling capacitor in a 50 + 50 ohm
-  path gives 16 kHz); if there is none, `G(100 Hz)` must be within 3 dB of
-  `G_LF`.
+- **Return loss.** Single-ended, at `gain=00`/`peak=00`:
+  - A 1 A AC current is injected straight into one input pin, without the
+    link capacitor, so this is the impedance looking into the die.
+  - The other input is terminated in 50 ohm to the `vocm` pin, and 1 Gohm
+    resistors from each input to `vocm` keep the DC operating point defined.
+  - `Z = v(pin) - v(vocm)` and `S11 = (Z - 50)/(Z + 50)`; each pin is
+    measured in its own run.
+
+  Differential: `Sdd11 = (v(vinp) - v(vinn)) - 1 V` from the AC run, the
+  reflected fraction of the 1 V incident differential wave. -15 dB up to
+  Nyquist at the die leaves room for the package and ESD parasitics that the
+  receiver's pin-level return-loss budget must also cover, and a SiGe input
+  with its small device capacitance reaches it without a T-coil.
+- **Input coupling.** With `gain=00`/`peak=00`, a rising crossing of
+  `G_LF - 3 dB` below 2 MHz must be at most 20 kHz; if there is none,
+  `G(100 Hz)` must be within 3 dB of `G_LF`. The link's 100 nF capacitors
+  in the 50 + 50 ohm path alone give 15.9 kHz, so a DC-coupled circuit
+  passes and an extra on-die high-pass raises the corner.
 - **Forward/reverse ratio.** In the same run as the gain, the input sources
   are set to zero (their 50 ohm resistances stay) and 1 A AC test currents are
   driven differentially into `voutp` and `voutn`.
@@ -124,48 +142,61 @@ applies at every graded point and code.
   means the signal must reach the output through a unidirectional active path
   that also keeps output disturbances off the channel.
   A passive equalizer followed by an active buffer is acceptable.
-- **Disturbances.** Inputs are held at the `vocm` source through their 50 ohm
-  with no signal, and both 200 fF loads return to a node that is 0 V at the
-  operating point. That node steps with a 10 ns edge at 100 ns, and later a
-  5 ns differential current pulse of about 1 mA enters one output and leaves
-  the other (ngspice `tran 0.5n 4.1u 0 0.5n`). The common mode
-  `(voutp+voutn)/2` and the differential output `voutp-voutn` are read from
-  3.1 us to 4.1 us: oscillation, very slow decay or an output that latches to
-  one side fails.
-- **Operating point.** At zero differential input, for every point and code.
-  `vocm` tracking: raising the `vocm` source by 10 mV (the input sources
-  follow it) must raise the DC output common mode by at least 9 mV. Total
-  power is the power delivered by `vdd` (`-V(vdd)*I(vdd)`, including the
-  100 uA reference branch) plus the magnitude of the DC power exchanged with
-  each other source: the `vocm` source, both input sources and the four
-  control sources. Power drawn from or returned into them is counted, never
-  excluded. The 60 mW budget covers about 7 mA per side of high-speed
-  transconductance from 3.63 V plus bias and common-mode control.
+- **Disturbances.** The setup:
+  - the inputs are held through their 50 ohm sources and link capacitors,
+    with no signal;
+  - both output loads return to a node that is 0 V at the operating point;
+  - that node steps with a 10 ns edge at 100 ns;
+  - before 1 us, a 5 ns common-mode current pulse of about 1 mA enters (or
+    leaves) each output;
+  - later, a 5 ns differential current pulse of about 1 mA enters one output
+    and leaves the other (ngspice `tran 0.5n 4.1u 0 0.5n`).
+
+  The common mode `(voutp+voutn)/2` and the differential output
+  `voutp-voutn` are read from 3.1 us to 4.1 us. Oscillation, very slow decay,
+  a common mode left away from `vdd/2` or an output that latches to one side
+  fails.
+- **Operating point.** Measured at zero differential input, for every point
+  and code.
+  - The output common-mode error is measured against `vdd/2`, the value of
+    the `vocm` source.
+  - `vocm` tracking: raising the `vocm` source by 10 mV must raise the DC
+    output common mode by at least 9 mV.
+  - `vocm` is a reference, not a supply: the DC current the circuit draws
+    from or pushes into the `vocm` pin is at most 100 uA (input base current
+    through a termination to `vocm` is a few tens of uA).
+  - Total power is the power delivered by `vdd` (`-V(vdd)*I(vdd)`, including
+    the 100 uA reference branch) plus the magnitude of the DC power exchanged
+    with the `vocm` source and the four control sources. Power drawn from or
+    returned into them is counted, never excluded. The input sources carry
+    no DC current through the link capacitors.
+  - The 60 mW budget covers about 7 mA per side of high-speed
+    transconductance from 3.63 V, plus bias and common-mode control.
 
 ## Deliverable and eligibility
 
-- Edit `/app/circuit.spi`. Use IHP SG13G2 devices for every active device
-  (the list and syntax are in [`netlist-guide.md`](netlist-guide.md)). Ideal
-  R, C and L elements are allowed, and so is SPICE `K` coupling between two
-  ideal L (for example an input T-coil); the PDK has no simulation model for
-  inductors. Every value must be a finite numeric literal: `.param` lines and
-  `{...}` expressions are rejected. Independent or controlled sources,
-  behavioral devices, ideal switches, models, analyses and includes are not
-  allowed. Keep supplies, sources and loads out of the circuit.
-- Before simulation the grader runs the check below; a failure scores 0.
+Edit `/app/circuit.spi`. What it may contain (IHP SG13G2 devices, ideal R, C,
+L and K, literal values, no sources) is the Netlist rule in
+[`signoff-rules.md`](signoff-rules.md). Before simulation the grader runs the
+check below; a failure scores 0.
 
-  ```bash
-  python3 /app/signoff/check_circuit.py /app/circuit.spi
-  ```
+```bash
+python3 /app/signoff/check_circuit.py /app/circuit.spi
+```
 
 ## Public benches
 
-`/app/testbench/tb_ac_tt.spi`, `tb_zin_tt.spi` and `tb_kick_tt.spi` run the AC
-and operating-point measurement, the input impedance and the disturbance
-transient at the nominal point with the same circuit and metric definitions as
-grading. Edit their `code_*` and `excite_*` parameters for other codes and the
-other input. Grading runs them at the other points and codes, with other
-disturbance signs and times.
+`/app/testbench/tb_ac_tt.spi`, `tb_zin_tt.spi` and `tb_kick_tt.spi` run three
+measurements at the nominal point with the same circuit and metric
+definitions as grading:
+
+- the AC and operating-point measurement;
+- the input impedance;
+- the disturbance transient.
+
+Edit their `code_*`, `excite_*` and `cload` parameters for other codes, the
+other input and other loads. Grading runs them at the other points and codes,
+with other disturbance signs and times and with the unpublished loads.
 
 Run a bench the way grading simulates it:
 

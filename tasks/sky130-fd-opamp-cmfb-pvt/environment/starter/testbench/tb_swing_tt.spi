@@ -1,0 +1,40 @@
+* Output swing in the gain -2 network (50 kohm inputs, 100 kohm feedback;
+* VIN on one input resistor, VCM on the other) at tt / 1.8 V / 27 C, VIN
+* swept 0 .. 1.8 V.  Prints vodpp_v, the Vod span over which the small-signal
+* gain stays at least 90 % of its value at VIN = VCM.
+* Run with `ngspice -b testbench/tb_swing_tt.spi`.
+.lib "/opt/sky130/continuous/sky130.lib.spice" tt
+.include "/app/circuit.spi"
+.options reltol=1e-6 abstol=1e-15 vntol=1e-9
+.temp 27
+VDD vdd 0 1.8
+VSS vss 0 0
+IBIAS vdd ibias 10u
+VCM vcm 0 0.9
+VI vi 0 0.9
+R1 vi inp 50k
+R2 inp outn 100k
+R3 vcm inn 50k
+R4 inn outp 100k
+XDUT vss ibias vdd vcmpin inp inn outp outn fd_opamp
+RVCM vcm vcmpin 1k
+RLP outp vcm 1meg
+CLP outp 0 2p
+RLN outn vcm 1meg
+CLN outn 0 2p
+.control
+set noaskquit
+dc vi 0 1.8 0.002
+let vod = v(outp) - v(outn)
+let g = abs(deriv(vod))
+meas dc g_vcm FIND g AT=0.9
+let g_lim = 0.9 * g_vcm
+meas dc vi_low WHEN g=$&g_lim RISE=1
+meas dc vi_high WHEN g=$&g_lim FALL=LAST
+meas dc vod_low FIND vod AT=$&vi_low
+meas dc vod_high FIND vod AT=$&vi_high
+let vodpp_v = abs(vod_high - vod_low)
+print vodpp_v
+quit
+.endc
+.end

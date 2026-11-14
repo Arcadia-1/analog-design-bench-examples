@@ -16,6 +16,7 @@
 .param code_g1=0
 .param code_p0=0
 .param code_p1=0
+.param cload=200f
 .param excite_p=1
 .param excite_n=0
 VSS vss 0 0
@@ -38,8 +39,8 @@ RPB0 spb0 peak_b0 1k
 VPB1 spb1 vss {code_p1*supply}
 RPB1 spb1 peak_b1 1k
 XDUT vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn ctle_28g
-CLP voutp vss 200f
-CLN voutn vss 200f
+CLP voutp vss {cload}
+CLN voutn vss {cload}
 
 .control
 ac dec 20 100 40g

@@ -28,6 +28,9 @@ OFF_VREF_MAX = 0.1
 NODESET_MAX_MV = 1.0
 SETTLE_MAX = 10e-6
 OVERSHOOT_MAX = 50e-3
+TARGET_MATCH = 1e-3
+# A circuit is graded as a reference only if these pass; otherwise the reward is 0.
+GATE_CHECKS = ("vref_accuracy", "line_regulation")
 
 # Coverage.
 CORNERS = ["tt", "ss", "ff", "sf", "fs"]
@@ -41,6 +44,27 @@ STARTUP_MODES = {  # name: (supply rise, load capacitance)
 }
 CHECKS = ["vref_accuracy", "temperature_coefficient", "line_regulation", "load_regulation", "psrr_10khz",
           "noise_10khz", "quiescent_current", "shutdown", "startup_settling", "startup_overshoot"]
+
+
+def available_cpus():
+    """CPUs this process may use: the cgroup quota (v2 cpu.max or v1 cfs quota) and the affinity mask."""
+    count = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else (os.cpu_count() or 1)
+    quota = None
+    try:
+        text = open("/sys/fs/cgroup/cpu.max").read().split()
+        if text[0] != "max":
+            quota = int(text[0]) / int(text[1])
+    except (OSError, ValueError, IndexError):
+        try:
+            q = int(open("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read())
+            p = int(open("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read())
+            if q > 0 and p > 0:
+                quota = q / p
+        except (OSError, ValueError):
+            pass
+    if quota:
+        count = min(count, max(1, int(quota + 0.999)))
+    return max(1, count)
 
 
 def fmt_list(values):
@@ -108,7 +132,7 @@ def main():
     jobs = [dc_job(c) for c in CORNERS] + [ac_job(c) for c in CORNERS]
     jobs += [startup_job(c, v, t, m) for c in CORNERS for v in SUPPLIES for t in EDGE_TEMPS
              for m in STARTUP_MODES]
-    workers = max(1, min(len(jobs), os.cpu_count() or 1))
+    workers = max(1, min(len(jobs), available_cpus()))
     with ThreadPoolExecutor(workers) as pool:
         results = list(pool.map(lambda j: simulate(j, devices), jobs))
     decks = dict(jobs)
@@ -118,6 +142,7 @@ def main():
         if error:
             report["failed_runs"][label] = error
 
+    dc_vref = {}
     for label, plots, _, error in results:
         kind = label.split("/")[0]
         if error:
@@ -129,12 +154,13 @@ def main():
             continue
         if kind == "dc":
             m = bs.dc_metrics(plots)
+            dc_vref[label.split("/")[1]] = m["vref"]
             report["metrics"][label] = {
                 "vref_min": min(m["vref"].values()), "vref_max": max(m["vref"].values()),
                 "tc_ppm_max": max(m["tc_ppm"].values()), "line_mv_per_v_max": max(m["line_mv_per_v"].values()),
                 "load_mv_max": max(m["load_mv"].values()), "iq_max_ua": max(m["iq"].values()) * 1e6,
-                "off_iq_max_na": max(i for i, _ in m["off"].values()) * 1e9,
-                "off_vref_max": max(v for _, v in m["off"].values()),
+                "off_iq_max_na": max(max(abs(a), abs(b)) for a, b, _ in m["off"].values()) * 1e9,
+                "off_vref_max": max(v for _, _, v in m["off"].values()),
                 "nodeset_spread_mv_max": max(m["nodeset_mv"].values())}
             for (vs, t), v in m["vref"].items():
                 if not VREF_MIN <= v <= VREF_MAX or math.isnan(v):
@@ -151,9 +177,10 @@ def main():
             for (vs, t), iq in m["iq"].items():
                 if not iq <= IQ_MAX:
                     fail("quiescent_current", f"{label} {vs:g} V {t:g} C: {iq * 1e6:.1f} uA")
-            for (vs, t), (iq, v) in m["off"].items():
-                if not (abs(iq) <= OFF_IQ_MAX and v <= OFF_VREF_MAX):
-                    fail("shutdown", f"{label} {vs:g} V {t:g} C: {iq * 1e9:.1f} nA, vref {v:.3f} V")
+            for (vs, t), (i_vdd, i_en, v) in m["off"].items():
+                if not (abs(i_vdd) <= OFF_IQ_MAX and abs(i_en) <= OFF_IQ_MAX and v <= OFF_VREF_MAX):
+                    fail("shutdown", f"{label} {vs:g} V {t:g} C: supply {i_vdd * 1e9:.1f} nA, enable source "
+                                     f"{i_en * 1e9:.1f} nA, vref {v:.3f} V")
             for (vs, t), spread in m["nodeset_mv"].items():
                 if not spread <= NODESET_MAX_MV:
                     fail("startup_settling", f"{label} {vs:g} V {t:g} C: operating points from different "
@@ -170,6 +197,12 @@ def main():
                     fail("noise_10khz", f"{label} {vs:g} V {t:g} C: {n * 1e9:.0f} nV/rtHz")
         else:
             m = bs.startup_metrics(plots, bs.edge_end(decks[label]))
+            _, _, corner, vdd, temp = label.split("/")
+            reference = dc_vref.get(corner, {}).get((float(vdd[:-1]), float(temp[:-1])))
+            if not (VREF_MIN <= m["target"] <= VREF_MAX) or reference is None \
+                    or abs(m["target"] - reference) > TARGET_MATCH:
+                fail("startup_settling", f"{label}: target operating point {m['target']:.4f} V is outside the "
+                                         f"window or differs from the DC bench ({reference})")
             report["metrics"][label] = {"settle_us": m["settle_s"] * 1e6, "overshoot_mv": m["overshoot_v"] * 1e3,
                                         "target": m["target"]}
             if not m["settle_s"] <= SETTLE_MAX:
@@ -179,12 +212,17 @@ def main():
 
     passed = sum(ok for ok, _ in checks.values())
     reward = passed / len(CHECKS)
+    gate_failed = [name for name in GATE_CHECKS if not checks[name][0]]
+    if gate_failed:
+        reward = 0.0
+        print(f"NOT A REFERENCE (reward 0): {', '.join(gate_failed)} failed")
     if report["violations"]:
         reward = 0.0
         print("SIGNOFF RULE VIOLATIONS (reward 0):")
         for line in report["violations"][:20]:
             print("  " + line)
     report["checks"] = {name: {"passed": ok, "failures": msgs} for name, (ok, msgs) in checks.items()}
+    report["gate_failed"] = gate_failed
     for name, (ok, msgs) in checks.items():
         print(f"{'PASS' if ok else 'FAIL'} {name}" + ("" if ok else ": " + "; ".join(msgs[:3])))
     for label, error in report["failed_runs"].items():

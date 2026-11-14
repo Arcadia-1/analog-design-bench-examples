@@ -8,9 +8,9 @@ with the grader's own code.
   every node voltage and source current to a raw file, and the rules below are checked on it. A run that fails is
   run once more with gear integration (`.options timeint method=gear`); if that also fails, every check that depends
   on the run fails.
-- **Diffusion geometry.** A MOS that does not set them gets the source and drain diffusion geometry of the GF180MCU
-  xschem symbols: `ad = as = w·0.18u`, `pd = ps = 2·(w + 0.18u)`. Without it the models have no junction
-  capacitance. Write them on your devices if you want plain Xyce runs to match.
+- **Diffusion geometry.** Every MOS gets the source and drain diffusion geometry of the GF180MCU xschem symbols:
+  `ad = as = w·0.18u`, `pd = ps = 2·(w + 0.18u)` (the netlist may not set it). A plain Xyce run of your netlist
+  has no junction capacitance unless you add these values to a copy yourself.
 - **Multipliers.** `m=K` on an instance of a local subcircuit is simulated as K parallel copies; `m=K` on an ideal
   resistor or capacitor as the equivalent single value.
 - **Voltage ratings**, at every time point of every run, including the operating point at t = 0: no MOS may see more
@@ -20,10 +20,12 @@ with the grader's own code.
   pumps past a rail, can exceed it.
 - **Junctions.** At the operating point (t = 0) no source-bulk or drain-bulk junction may be forward biased by more
   than 0.4 V.
-- **Stored energy.** In each power window (50 ns to 1 ns before the end of both benches) the energy stored in your
-  capacitors may not end the window more than 5 % of the energy the bench's sources deliver in it (plus
-  20 nA × supply × window length, plus 0.5 fJ) below the lowest level it had since the start of the run. The stored
-  energy counts every ideal capacitor (½·C·v²) and the gate-oxide energy of every MOS whose channel carries no
-  current (drain and source on one node, joined through resistors, or one of them connected to nothing else; or
-  gate on source): ½·Cox·W·L·m·v², with Cox = 4.3 fF/µm². A design may not run on charge stored at the operating
-  point, for example a large capacitor on an internal rail fed through a high resistance.
+- **Stored energy.** In each power window (50 ns to 1 ns before the end of every bench) the energy stored in your
+  circuit may not end the window more than 2 % of the energy the bench's sources deliver in it (plus
+  20 nA × supply × window length, plus 0.5 fJ) below its level at the start of the window, so a reservoir charged
+  during the unmetered warm-up and spent in the window is caught. The stored
+  energy counts every ideal capacitor (½·C·v²), the gate oxide of every MOS (½·Cox·W·L·m·v², v from the gate to the
+  mean of source and drain, Cox = 4.3 fF/µm²) and the source and drain junctions of every MOS
+  (½·(Cj·A + Cjsw·P)·m·v², v from the diffusion to the bulk, with A and P from the geometry above and the model
+  cards' Cj ≈ 0.95 fF/µm² and Cjsw ≈ 0.15 fF/µm). A design may not run on charge stored at the operating point, for
+  example a large capacitor or MOS gate charged before the window on an internal rail fed through a high resistance.

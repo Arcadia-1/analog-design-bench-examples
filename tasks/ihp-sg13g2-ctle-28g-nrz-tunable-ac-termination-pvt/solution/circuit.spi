@@ -1,51 +1,42 @@
 * Reference: tunable SiGe HBT CTLE for a 28 Gb/s NRZ receiver front end, IHP SG13G2, 3.3 V (non-inverting:
 *   voutp follows vinp).
-* Input: 50 ohm termination per leg to vocm; the bases are AC-coupled (2 nF) and biased through 5 kohm from vbg,
-*   which a 100 uA mirror holds 0.1 V above vocm, so the collector-base junctions stay near zero bias.
-* Gain stage: npn13G2 differential pair (Nx=8, about 6 mA per side) with per-side tails from iref, each a lv NMOS
-*   mirror under a lv NMOS cascode (gate from a diode-plus-resistor replica), so the tails add little capacitance
-*   or conductance at the emitters.
+* Input: DC-coupled. 50 ohm termination per leg to vocm sets the input common mode (the link's AC-coupling
+*   capacitors are off-die); the pins drive the HBT bases directly.
+* Gain stage: npn13G2 differential pair (Nx=8, about 6.5 mA per side) with per-side tails from iref: a wide lv NMOS
+*   mirror (low overdrive) under a lv NMOS cascode biased by a diode-plus-resistor replica, so both stay saturated
+*   down to 2.97 V at 0 C and the tail current does not move with temperature.
 * Gain code: thermometer-coded emitter-degeneration resistor bank (hv NMOS switches at the bank's differential
 *   virtual ground) across a 345 ohm base resistor; it sets the 1 MHz gain through the load/degeneration ratio.
-* Peak code: three differential MOS varactors (sg13_hv_svaricap) across the emitters, thermometer-decoded from
-*   the 2-bit code by hv CMOS NOR/inverter/NAND gates that drive the wells (well low = high capacitance); the
-*   emitter capacitance sets the degeneration zero and the 14 GHz gain.
-* Load: 45 ohm plus a 0.25 nH shunt-peaking inductor to an internal rail, and a 0.2 nH series inductor from each
+* Peak code: emitter capacitance in three thermometer steps decoded by hv CMOS gates: two differential MOS
+*   varactors (sg13_hv_svaricap, well low = high capacitance) for the first two steps and a 170 fF pair of
+*   capacitors switched by an hv NMOS at the differential virtual ground for the third (its off state adds less
+*   capacitance than a varactor would, which keeps code 00 low).
+* Load: 45 ohm plus a 0.15 nH shunt-peaking inductor to an internal rail, and a 0.2 nH series inductor from each
 *   collector to the opposite-polarity output pin; a CMFB amplifier drives the hv PMOS that sets the rail so the
 *   output common mode tracks vocm.
 .subckt ctle_28g vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn
-* bias: iref diode, cascoded tails
-XREF iref iref vss vss sg13_lv_nmos w=2u l=0.5u ng=1
-XTP tp iref vss vss sg13_lv_nmos w=120u l=0.5u ng=12
-XTCP ep vcg tp vss sg13_lv_nmos w=60u l=0.13u ng=12
-XTN tn iref vss vss sg13_lv_nmos w=120u l=0.5u ng=12
-XTCN en vcg tn vss sg13_lv_nmos w=60u l=0.13u ng=12
-XBN xbn iref vss vss sg13_lv_nmos w=2u l=0.5u ng=1
+XREF iref iref vss vss sg13_lv_nmos w=6u l=0.5u ng=1
+XTP tp iref vss vss sg13_lv_nmos w=360u l=0.5u ng=36
+XTCP ep vcg tp vss sg13_lv_nmos w=80u l=0.13u ng=16
+XTN tn iref vss vss sg13_lv_nmos w=360u l=0.5u ng=36
+XTCN en vcg tn vss sg13_lv_nmos w=80u l=0.13u ng=16
+XBN xbn iref vss vss sg13_lv_nmos w=6u l=0.5u ng=1
 XBC pbd vocm xbn vss sg13_hv_nmos w=4u l=0.45u ng=1
 XBPD pbd pbd vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
-XBPM vbg pbd vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
-RSH vbg vocm 1k
-CBG vbg vss 10p
 XBPC vcg pbd vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
-XCREP vcg vcg vcs vss sg13_lv_nmos w=1u l=0.13u ng=1
-RCB vcs vss 3k
+XCREP vcg vcg vcs vss sg13_lv_nmos w=2u l=0.13u ng=1
+RCB vcs vss 3.5k
 CCG vcg vss 10p
-* input
 RTP vinp vocm 50
 RTN vinn vocm 50
-CCP vinp bp 2n
-CCN vinn bn 2n
-RBP bp vbg 5k
-RBN bn vbg 5k
-XQP cp bp ep vss npn13G2 Nx=8
-XQN cn bn en vss npn13G2 Nx=8
-LPP vddi xp 0.25n
+XQP cp vinp ep vss npn13G2 Nx=8
+XQN cn vinn en vss npn13G2 Nx=8
+LPP vddi xp 0.15n
 RLP xp cp 45
 LOP cp voutn 0.2n
-LPN vddi xn 0.25n
+LPN vddi xn 0.15n
 RLN xn cn 45
 LON cn voutp 0.2n
-* gain bank
 RS0 ep en 345
 RG1A ep g1a 643
 XG1A g1a gain_b1 g1b vss sg13_hv_nmos w=20u l=0.45u ng=4
@@ -59,8 +50,6 @@ XG3A g3a gain_b1 g3m vss sg13_hv_nmos w=40u l=0.45u ng=8
 XG3B g3m gain_b0 g3b vss sg13_hv_nmos w=40u l=0.45u ng=8
 RG3M g3m vss 1meg
 RG3B g3b en 386
-* peak bank: thermometer-decoded differential varactors; each well is driven by the inverted bit
-* t1 = b0 or b1 (well = NOR), t2 = b1 (well = NOT b1), t3 = b0 and b1 (well = NAND)
 XN1PA n1 peak_b0 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
 XN1PB w1 peak_b1 n1 vdd sg13_hv_pmos w=2u l=0.5u ng=1
 RN1 n1 vdd 1meg
@@ -75,21 +64,24 @@ XN3NB n3 peak_b1 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
 RN3 n3 vss 1meg
 RW1 w1 w1f 20k
 RW2 w2 w2f 20k
-RW3 w3 w3f 20k
 CW1 w1f vss 1p
 CW2 w2f vss 1p
-CW3 w3f vss 1p
 XV1 ep w1f en vss sg13_hv_svaricap w=9.74u l=0.8u nx=3
-XV2 ep w2f en vss sg13_hv_svaricap w=9.74u l=0.8u nx=3
-XV3 ep w3f en vss sg13_hv_svaricap w=9.74u l=0.8u nx=4
-* CMFB
+XV2 ep w2f en vss sg13_hv_svaricap w=9.74u l=0.7u nx=5
+XA3P a3 w3 vdd vdd sg13_hv_pmos w=2u l=0.5u ng=1
+XA3N a3 w3 vss vss sg13_hv_nmos w=1u l=0.5u ng=1
+CT3P ep t3p 170f
+XST3 t3p a3 t3n vss sg13_hv_nmos w=80u l=0.45u ng=16
+CT3N t3n en 170f
+RT3P t3p vss 20k
+RT3N t3n vss 20k
 RCP voutp cms 10k
 RCN voutn cms 10k
 XE1 ea1 cms et vss sg13_hv_nmos w=10u l=0.5u ng=2
 XE2 ea2 vocm et vss sg13_hv_nmos w=10u l=0.5u ng=2
 XEP1 ea1 ea1 vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
 XEP2 ea2 ea1 vdd vdd sg13_hv_pmos w=10u l=0.5u ng=2
-XET et iref vss vss sg13_lv_nmos w=4u l=0.5u ng=1
+XET et iref vss vss sg13_lv_nmos w=12u l=0.5u ng=2
 CCMP ea2 vdd 2p
 XPASS vddi ea2 vdd vdd sg13_hv_pmos w=200u l=0.4u ng=40 m=4
 CVDDI vddi vss 20p

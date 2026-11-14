@@ -20,10 +20,15 @@ Only `.subckt` / `.ends` blocks, and inside them:
 
 | Element | Form | Rules |
 |---|---|---|
-| MOS | `M<name> d g s b nfet_03v3 w=4u l=0.28u [m=2]` (or `pfet_03v3`) | plain numbers in metres; `w` 0.22u to 100u, `l` 0.28u to 50u; `m` a whole number for parallel devices; `ad`, `as`, `pd`, `ps` optional; no `nf` or other parameters |
+| MOS | `M<name> d g s b nfet_03v3 w=4u l=0.28u [m=2]` (or `pfet_03v3`) | plain numbers in metres; `w` 0.22u to 100u, `l` 0.28u to 50u; `m` a whole number for parallel devices; no other parameters (signoff sets the diffusion geometry, see `signoff-rules.md`) |
 | resistor | `R<name> a b 500 [m=2]` | ideal, plain positive value |
 | capacitor | `C<name> a b 2p [m=2]` | ideal, plain positive value |
 | subcircuit | `X<name> <nodes> <subckt> [m=2]` | a subcircuit defined in the same file, with its pin count; `m` makes that many parallel copies |
+
+No sources, switches, behavioral or controlled elements, inductors, models,
+parameters, expressions, includes, options or analyses. Every subcircuit must
+contain at least one element and none may instantiate itself. Names of
+elements, nodes and subcircuits use letters, digits and `_ . - [ ] < >`.
 
 The MOS models are binned BSIM4 cards: write the model name `nfet_03v3` or
 `pfet_03v3` directly on an `M` line (there are no `X` wrappers in the Xyce
@@ -39,8 +44,5 @@ MN y a vss vss nfet_03v3 w=2u l=0.28u
 .ends inv
 ```
 
-Check a netlist with the grader's own eligibility check:
-
-```bash
-python3 /app/signoff/check_circuit.py /app/circuit.spi --require-subcircuit flash_adc_3bit vss vdd vrefn vrefp clk vin b2 b1 b0
-```
+`/app/signoff/check_circuit.py` applies exactly these rules (the command is in
+`README.md`).

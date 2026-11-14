@@ -1,8 +1,9 @@
-* CTLE stability after disturbances at one PVT point and code, with the inputs held at vocm through 50 ohm and no
-* signal. Both 200 fF loads return to vdist, which steps by kick_cm volts with a 10 ns edge at 100 ns (a common-mode
-* disturbance); at kick_t a differential current pulse of kick_dm amperes, 5 ns long, enters voutp and leaves voutn.
-* The output common mode and the differential output are read from 3.1 us to 4.1 us. verify.py replaces the .lib
-* corner names and the .param values before each run.
+* CTLE stability after disturbances at one PVT point and code, with the inputs held through 50 ohm and the link's
+* 100 nF coupling capacitors and no signal. Both cload loads return to vdist, which steps by kick_cm volts with a
+* 10 ns edge at 100 ns (a common-mode disturbance); at kick_cmt a common-mode current pulse of kick_cmi amperes,
+* 5 ns long, enters each output; at kick_t a differential current pulse of kick_dm amperes, 5 ns long, enters voutp
+* and leaves voutn. The output common mode and the differential output are read from 3.1 us to
+* 4.1 us. verify.py replaces the .lib corner names and the .param values before each run.
 .lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerMOSlv.lib" mos_tt
 .lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerMOShv.lib" mos_tt
 .lib "/opt/ihp/pdk/ihp-sg13g2/libs.tech/ngspice/models/cornerHBT.lib" hbt_typ
@@ -17,18 +18,23 @@
 .param code_g1=0
 .param code_p0=0
 .param code_p1=0
+.param cload=200f
 .param kick_cm=0.1
 .param kick_dm=1m
 .param kick_t=1u
+.param kick_cmi=1m
+.param kick_cmt=0.5u
 VSS vss 0 0
 VDD vdd vss {supply}
 IREF vdd iref 100u
 VOCM vcmsrc vss {supply/2}
 RVOCM vcmsrc vocm 10
 VSP srcp vcmsrc DC 0
-RSP srcp vinp 50
+RSP srcp xsp 50
+CSP xsp vinp 100n
 VSN srcn vcmsrc DC 0
-RSN srcn vinn 50
+RSN srcn xsn 50
+CSN xsn vinn 100n
 VGB0 sgb0 vss {code_g0*supply}
 RGB0 sgb0 gain_b0 1k
 VGB1 sgb1 vss {code_g1*supply}
@@ -38,11 +44,13 @@ RPB0 spb0 peak_b0 1k
 VPB1 spb1 vss {code_p1*supply}
 RPB1 spb1 peak_b1 1k
 XDUT vss vdd iref vocm vinp vinn gain_b0 gain_b1 peak_b0 peak_b1 voutp voutn ctle_28g
-CLP voutp vdist 200f
-CLN voutn vdist 200f
+CLP voutp vdist {cload}
+CLN voutn vdist {cload}
 VDIST vdist vss DC 0 PWL(0 0 100n 0 110n {kick_cm})
 IKP 0 voutp DC 0 PULSE(0 {kick_dm} {kick_t} 0.5n 0.5n 5n 1)
 IKN voutn 0 DC 0 PULSE(0 {kick_dm} {kick_t} 0.5n 0.5n 5n 1)
+ICP 0 voutp DC 0 PULSE(0 {kick_cmi} {kick_cmt} 0.5n 0.5n 5n 1)
+ICN 0 voutn DC 0 PULSE(0 {kick_cmi} {kick_cmt} 0.5n 0.5n 5n 1)
 
 .control
 tran 0.5n 4.1u 0 0.5n

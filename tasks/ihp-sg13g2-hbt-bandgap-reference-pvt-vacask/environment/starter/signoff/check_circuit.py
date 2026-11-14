@@ -33,10 +33,10 @@ DEVICES = {
 # Terminals that must reach the vss pin: the p-substrate under every device.
 SUBSTRATE = {"npn13G2": "bn", "npn13G2l": "bn", "npn13G2v": "bn", "rppd": "bn", "rsil": "bn",
              "rhigh": "bn", "sg13_hv_nmos": "b", "sg13_lv_nmos": "b"}
-PREFIX = {"a": 1e-18, "f": 1e-15, "p": 1e-12, "n": 1e-9, "u": 1e-6, "m": 1e-3, "k": 1e3, "K": 1e3,
-          "M": 1e6, "x": 1e6, "X": 1e6, "G": 1e9, "T": 1e12}
+PREFIX = {"a": 1e-18, "f": 1e-15, "p": 1e-12, "n": 1e-9, "u": 1e-6, "m": 1e-3, "k": 1e3, "M": 1e6, "G": 1e9,
+          "T": 1e12}
 IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
-NUMBER = re.compile(r"^([0-9]+\.?[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?(meg|mil|[afpnumkKMxXGT])?$")
+NUMBER = re.compile(r"^([0-9]+\.?[0-9]*|\.[0-9]+)([eE][+-]?[0-9]+)?(meg|[afpnumkMGT])?$")
 RESERVED = {"include", "section", "endsection", "load", "model", "global", "ground", "subckt", "ends",
             "parameters", "control", "endc", "analysis", "sweep", "embed", "save"}
 MAX_DEPTH = 8
@@ -51,8 +51,6 @@ def parse_value(text):
     prefix = match.group(3)
     if prefix == "meg":
         value *= 1e6
-    elif prefix == "mil":
-        value *= 25.4e-6
     elif prefix:
         value *= PREFIX[prefix]
     return value

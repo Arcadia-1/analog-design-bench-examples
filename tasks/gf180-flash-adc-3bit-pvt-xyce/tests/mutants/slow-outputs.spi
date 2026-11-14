@@ -1,4 +1,4 @@
-* Mutant: a 60 kohm resistor in series with each output. With the bench's 50 fF load the outputs settle
+* Mutant: a 60 kohm resistor in series with each output (20 fF of wiring on the gate side). With the bench's 50 fF load the outputs settle
 * with a 3 ns time constant, so they reach a valid level about 5 ns after the clock edge: every code is
 * still read correctly at 19 ns, but the outputs are not valid 3 ns after the edge.
 * Expected: fails only output_timing.
@@ -69,6 +69,7 @@ RL5 t5 t4 500
 RL6 t6 t5 500
 RL7 t7 t6 500
 RL8 vrefp t7 500
+CVIN vin vss 2p
 CT1 t1 vss 2p
 CT2 t2 vss 2p
 CT3 t3 vss 2p
@@ -105,4 +106,7 @@ XE11 n4 b2i vdd vss fa_inv
 RO2 b2i b2 60k
 RO1 b1i b1 60k
 RO0 b0i b0 60k
+CW2 b2i vss 20f
+CW1 b1i vss 20f
+CW0 b0i vss 20f
 .ends flash_adc_3bit

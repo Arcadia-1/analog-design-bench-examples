@@ -1,7 +1,7 @@
 * Mutant: ladder resistors 3 and 4 mis-trimmed (380 / 620 ohm), so threshold 3 sits 48 mV (0.24 LSB) low.
 * It is inside the 0.3 LSB threshold window, so the transfer bench passes, but one sample of the hidden
-* sine record lies 0.2 LSB above threshold 3 and converts one code high.
-* Expected: fails only sndr_22db.
+* 3.125 MHz sine lies 0.2 LSB above threshold 3 and converts one code high.
+* Expected: fails only sndr_3mhz.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
@@ -69,6 +69,7 @@ RL5 t5 t4 500
 RL6 t6 t5 500
 RL7 t7 t6 500
 RL8 vrefp t7 500
+CVIN vin vss 2p
 CT1 t1 vss 2p
 CT2 t2 vss 2p
 CT3 t3 vss 2p
