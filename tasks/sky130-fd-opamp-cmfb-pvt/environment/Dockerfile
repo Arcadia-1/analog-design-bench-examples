@@ -1,4 +1,4 @@
-FROM ghcr.io/arcadia-1/circuit-bench-sky130-ngspice@sha256:2da03dc7f1ead7ddc33f2f930a0487ae8618e51518009344584a98fca41a621d
+FROM ghcr.io/arcadia-1/circuit-bench-sky130-ngspice@sha256:ab4433f6ff4c26dd1730eddb663e5efe8fbb2a7832a637164d079655fa91fddc
 
 COPY analog-arena/ /opt/analog-arena/
 ENV PATH="/opt/analog-arena:${PATH}"
