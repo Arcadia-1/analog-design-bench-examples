@@ -14,8 +14,10 @@ with exactly that pin order.
 - `iref`: a 100 uA reference current from `vdd` into this pin. It is the only
   bias input; deriving the internal bias currents from it is intended but not
   scored.
-- `vocm`: the common-mode reference, `vdd/2`. The output common mode must
-  track it, and the input termination may return to it.
+- `vocm`: the common-mode reference input. The bench drives it at `vdd/2`
+  in every graded run, except one operating-point measurement that raises it
+  by 10 mV to check that the output common mode follows it (Operating
+  point, below). The input termination may return to it.
 - `vinp`, `vinn`: differential input from the channel. As in a real link, the
   channel reaches the pins through AC-coupling capacitors on the board
   (100 nF, part of the test bench, not of the circuit), so the circuit sets
@@ -41,9 +43,14 @@ hierarchy or connectivity.
   capacitor (the link's AC coupling). The AC amplitudes are +1 V on the
   `vinp` side and -1 V on the `vinn` side (2 V differential open-circuit), so
   a matched 100 ohm differential input receives exactly 1 V.
-- Each output is loaded by a capacitor to `vss`: 200 fF at the points listed
-  under Coverage. The load of a real receiver varies, so grading also uses
-  other loads between 180 and 220 fF (below).
+- Output load: each output drives one capacitor `C_L` and nothing else, as
+  the input of the next stage (a sampler or slicer) presents. There is no
+  resistive, DC or differential load: the outputs must set their own DC level
+  and common mode. `C_L` is 200 fF at every graded point except two
+  unpublished values between 180 and 220 fF (Coverage). Both capacitors
+  return to `vss`, except in the disturbance transient, where they return to
+  a node that is at `vss` at the operating point and then steps (Measurement
+  definitions).
 - AC analysis runs from 100 Hz to 40 GHz at 20 points per decade (ngspice
   `ac dec 20 100 40g`).
 - Gain is `G(f) = 20 log10(abs(v(voutp)-v(voutn)) / 1 V)`. `G_LF = G(1 MHz)`,
@@ -94,13 +101,13 @@ fails only `forward_reverse_ratio`.
 | `output_polarity` | The 1 MHz differential gain is non-inverting (positive real part) |
 | `inband_flatness` | From 1 MHz to 14 GHz, `G` at most 1 dB above the larger of `G_LF` and `G_14`, and never below `G_LF - 3 dB` |
 | `above_nyquist_peaking` | From 14 GHz to 40 GHz, `G` at most 3 dB above `G_14` |
-| `bandwidth_floor` | The first falling crossing of `G_14 - 3 dB` above 14 GHz is at 25 GHz or higher; a response still above it at 40 GHz passes |
+| `bandwidth_floor` | `f_-3dB`, the first frequency above 14 GHz where `G` falls to `G_14 - 3 dB`, is 25 GHz or higher at every code; a response still above `G_14 - 3 dB` at 40 GHz passes |
 | `forward_reverse_ratio` | `R(f)` at least 15 dB from 100 MHz to 14 GHz |
 | `input_coupling_corner` | Low-frequency corner, with the link's 100 nF capacitors, at most 20 kHz |
 | `input_termination_impedance` | Single-ended input impedance at 1 MHz from 40 to 60 ohm at each input |
 | `input_return_loss` | Single-ended `abs(S11)` of each input and differential `abs(Sdd11)` at every code at most -15 dB from 100 MHz to 14 GHz |
-| `common_mode_stability` | Output common mode within 75 mV of `vdd/2` and its peak-to-peak at most 1 mV, from 3.1 to 4.1 us after the disturbances |
-| `differential_stability` | Differential output peak-to-peak at most 1 mV, and `abs(voutp-voutn)` at most 5 mV, from 3.1 to 4.1 us after the disturbances |
+| `common_mode_stability` | After the disturbances, from 3.1 to 4.1 us: output common mode within 75 mV of `vdd/2` and its peak-to-peak at most 1 mV |
+| `differential_stability` | After the disturbances, from 3.1 to 4.1 us: differential output peak-to-peak at most 1 mV and `abs(voutp-voutn)` at most 5 mV |
 | `bias_and_power` | Output common mode within 75 mV of `vdd/2`, differential offset at most 5 mV, each output between `vss + 0.25 V` and `vdd - 0.25 V`, `vocm` tracking at least 9 mV per 10 mV, DC current into or out of the `vocm` pin at most 100 uA (also with `vocm` raised 10 mV), the `iref` pin between `vss + 0.2 V` and `vdd - 0.5 V`, total power at most 60 mW |
 
 ## Measurement definitions
@@ -115,9 +122,15 @@ fails only `forward_reverse_ratio`.
 
   Over the four codes, the Nyquist boost `G_14 - G_LF` spans 6 to 18 dB, the
   range a 28 Gb/s NRZ receiver typically asks of its CTLE.
-- **Bandwidth.** 25 GHz, about 0.9 times the 28 GBd symbol rate, keeps the
-  equalizer's own roll-off above Nyquist from adding intersymbol interference
-  that the receiver would have to equalize again.
+- **Bandwidth.** A CTLE's response peaks, so `f_-3dB` is not taken from the
+  low-frequency gain (`G_LF - 3 dB` lies far below the peak and would be
+  crossed only far above it) nor from the highest point of the peak. It is
+  measured from `G_14`, the Nyquist gain the peak code sets: at each code,
+  the first falling crossing of `G_14 - 3 dB` above 14 GHz. How far the
+  response may rise above `G_14` before it falls is limited separately by
+  `above_nyquist_peaking`. 25 GHz, about 0.9 times the 28 GBd symbol rate,
+  keeps the equalizer's own roll-off above Nyquist from adding intersymbol
+  interference that the receiver would have to equalize again.
 - **Polarity.** The real part of `v(voutp)-v(voutn)` at 1 MHz must be
   positive, so an inverted output fails.
 - **Return loss.** Single-ended, at `gain=00`/`peak=00`:
@@ -146,27 +159,39 @@ fails only `forward_reverse_ratio`.
   means the signal must reach the output through a unidirectional active path
   that also keeps output disturbances off the channel.
   A passive equalizer followed by an active buffer is acceptable.
-- **Disturbances.** The setup:
-  - the inputs are held through their 50 ohm sources and link capacitors,
-    with no signal;
-  - both output loads return to a node that is 0 V at the operating point;
-  - that node steps with a 10 ns edge at 100 ns;
-  - from a time before 1 us to the end of the run, a common-mode current
-    step of about 2 mA enters (or leaves) each output, so the common-mode loop
-    must re-servo the outputs;
-  - later, a 5 ns differential current pulse of about 1 mA enters one output
-    and leaves the other (ngspice `tran 0.5n 4.1u 0 0.5n`).
+- **Disturbances (stability).** The two stability checks are large-signal
+  stability tests of the output common-mode loop and of the differential
+  path. A loop gain or phase margin would need the loops broken at internal
+  nodes that only the design knows, and grading never looks inside the
+  circuit, so stability is judged from the outputs: the circuit is
+  disturbed three times and must come back to rest at its target. One
+  transient (ngspice `tran 0.5n 4.1u 0 0.5n`) applies, in order:
+  1. Load-return step: the node both `C_L` return to is at `vss` at the
+     operating point and steps by 100 mV, up or down, with a 10 ns edge at
+     100 ns, then stays there.
+  2. Common-mode current step: a current of 2 mA, ramped in 10 ns, enters
+     each output (or leaves each output) from a start between 0.4 and 0.6 us
+     to the end of the run, so the common-mode loop must re-servo the outputs
+     against it.
+  3. Differential current pulse: 1 mA enters one output and leaves the other
+     for 5 ns (0.5 ns edges), at a time between 1 and 2 us.
 
-  The common mode `(voutp+voutn)/2` and the differential output
-  `voutp-voutn` are read from 3.1 us to 4.1 us. Oscillation, very slow decay,
-  a common mode left away from `vdd/2` or an output that latches to one side
-  fails.
+  The inputs are held through their 50 ohm sources and link capacitors with
+  no signal. The common mode `(voutp+voutn)/2` and the differential output
+  `voutp-voutn` are read from 3.1 us to 4.1 us, at least 1.1 us after the
+  last disturbance. The target is fixed in advance: the common mode within
+  75 mV of `vdd/2` and the differential output within 5 mV of zero, each
+  still to within 1 mV peak-to-peak. Oscillation, ringing that has not
+  decayed, a common mode left away from `vdd/2` or an output latched to one
+  side fails. The public bench applies one combination of signs and times;
+  grading applies others from these ranges.
 - **Operating point.** Measured at zero differential input, for every point
   and code.
-  - The output common-mode error is measured against `vdd/2`, the value of
-    the `vocm` source.
-  - `vocm` tracking: raising the `vocm` source by 10 mV must raise the DC
-    output common mode by at least 9 mV.
+  - The output common-mode error is measured with the `vocm` source at
+    `vdd/2`, against `vdd/2`.
+  - `vocm` tracking: a second operating point with the `vocm` source at
+    `vdd/2 + 10 mV` must have a DC output common mode at least 9 mV higher.
+    This is the only measurement with `vocm` away from `vdd/2`.
   - `vocm` is a reference, not a supply: the DC current the circuit draws
     from or pushes into the `vocm` pin is at most 100 uA (input base current
     through a termination to `vocm` is a few tens of uA), checked at both
