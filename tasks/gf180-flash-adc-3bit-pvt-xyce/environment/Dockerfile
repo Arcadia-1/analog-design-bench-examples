@@ -1,4 +1,4 @@
-FROM ghcr.io/arcadia-1/circuit-bench-gf180-xyce@sha256:8beddf99cfc3cd89fb14a3f0d86b03b59e5300934d88c85e5ac73ed1813967bd
+FROM ghcr.io/arcadia-1/circuit-bench-gf180-xyce@sha256:75603bfe5b5e76b955d7bfa0c6b5916ca477541ba9310175f6a9a6767dd85aef
 
 RUN useradd --create-home --uid 1000 agent
 
