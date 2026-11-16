@@ -54,6 +54,8 @@ The SKY130 ngspice model libraries set `scale=1u`; therefore, numeric `l` and `w
 
 The `w` parameter is total channel width, `nf` is the positive integer number of fingers, and `w/nf` is the width of one finger.
 
+A PDK MOS instance takes only `w`, `l`, `nf`, `m`, `mult`, `ad`, `as`, `pd` and `ps`; the checker refuses any other parameter (`delvto`, `nrd`, `sa`, ...). `m`, `mult` and `nf` must be integers of at least 1, and `mult` must equal `m`. Leave `ad`, `as`, `pd` and `ps` out to get the PDK's default junction geometry; if you set them, `ad` and `as` may be at most `0.6*w` (um²) and `pd` and `ps` at most `2*(w + 0.6)` (um).
+
 ## Subcircuits and hierarchy
 
 Define a subcircuit with `.subckt` and terminate it with `.ends`:
@@ -65,6 +67,8 @@ Define a subcircuit with `.subckt` and terminate it with `.ends`:
 ```
 
 Nodes listed after the subcircuit name are external terminals. Other nodes are local to the subcircuit, except node `0` and nodes declared with `.global`.
+
+A local subcircuit may not use a PDK cell's name or any name starting with `sky130_fd_`.
 
 ## Passive and RF devices
 

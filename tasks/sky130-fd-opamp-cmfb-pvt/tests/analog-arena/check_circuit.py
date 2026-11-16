@@ -35,6 +35,17 @@ NONNEGATIVE_PARAMETERS = {"ad", "as", "pd", "ps"}
 INTEGER_PARAMETERS = {"nf", "m", "mult", "mf"}
 # Published minimum lengths in SKY130_NETLIST_GUIDE.md are eligibility limits,
 # independent of ngspice's tolerance when searching model bins.
+# A local subcircuit may not take a name in the PDK's namespace: a task rule (or a reader) that
+# recognises PDK devices by name would take it for a transistor and never look inside it.
+PDK_NAMESPACE_PREFIX = "sky130_fd_"
+MOS_TARGET_RE = re.compile(r"^sky130_fd_pr__(?:esd_|rf_|special_)?[np]fet_", re.IGNORECASE)
+# The only instance parameters a PDK MOS line may carry. Anything else (delvto, mulu0, nrd, nrs, sa,
+# sb, mc_mm_switch, ...) either changes the device outside its model or is silently ignored.
+MOS_INSTANCE_PARAMETERS = {"w", "l", "nf", "m", "mult", "ad", "as", "pd", "ps"}
+# Explicit junction geometry is allowed up to what one diffusion of the device's width occupies
+# (about 2x the wrappers' default 0.29 um diffusion length), so it can describe a real layout but
+# cannot add junction capacitance outside a task's capacitor budget. Units are the wrappers' um / um^2.
+MOS_MAX_DIFFUSION_LENGTH_UM = 0.6
 PUBLIC_MOS_MIN_LENGTH_UM = {
     "sky130_fd_pr__nfet_01v8": 0.15,
     "sky130_fd_pr__pfet_01v8": 0.15,
@@ -56,11 +67,13 @@ def circuit_lines(path: Path) -> list[str]:
     data = path.read_bytes()
     for number, raw in enumerate(data.split(b"\n"), 1):
         body = raw[:-1] if raw.endswith(b"\r") else raw
-        if body.lstrip(b" \t").startswith(b"*#"):
-            # ngspice runs `*#` lines as control commands (e.g. `*# alter`), so they are not comments.
-            print(f"{path}:{number}: a line starting with `*#` is a control command, not a comment")
+        stripped = body.lstrip(b" 	").lower()
+        if stripped.startswith(b"*#") or stripped.startswith(b"*ng_script"):
+            # ngspice does not skip these as comments: it runs a `*#` line as a control
+            # command (e.g. `*# alter`) and treats `*ng_script` as a control script.
+            print(f"{path}:{number}: `*#` and `*ng_script` lines are control commands to ngspice, not comments")
             raise SystemExit(1)
-        if body.lstrip(b" \t").startswith(b"*"):
+        if stripped.startswith(b"*"):
             continue
         for byte in body:
             if byte != 0x09 and not 0x20 <= byte <= 0x7E:
@@ -205,6 +218,45 @@ def assignments(words: list[str]) -> dict[str, float]:
     return result
 
 
+def multiplicity_violations(words: list[str]) -> list[str]:
+    """m, mult, nf and mf on any X line must be whole numbers >= 1 (ngspice multiplies by the value)."""
+    parameters = assignments(words)
+    return [
+        f"parameter {name} must be an integer >= 1"
+        for name in sorted(INTEGER_PARAMETERS & parameters.keys())
+        if not (parameters[name].is_integer() and parameters[name] >= 1)
+    ]
+
+
+def mos_instance_violations(target: str, words: list[str]) -> list[str]:
+    """A PDK MOS line takes only w, l, nf, m, mult and junction geometry bounded by its width."""
+    if not MOS_TARGET_RE.match(target):
+        return []
+    violations = []
+    for word in words:
+        if "=" not in word:
+            continue
+        name = word.split("=", 1)[0].lower()
+        if name not in MOS_INSTANCE_PARAMETERS:
+            violations.append(f"parameter {name} is not allowed on a PDK MOS device (only w, l, nf, m, mult, ad, as, pd, ps)")
+    parameters = assignments(words)
+    width = parameters.get("w")
+    junction = {name: parameters[name] for name in ("ad", "as", "pd", "ps") if name in parameters}
+    if junction and width is None:
+        violations.append("explicit ad/as/pd/ps on a PDK MOS device need an explicit w")
+    elif junction:
+        area_limit = width * MOS_MAX_DIFFUSION_LENGTH_UM
+        perimeter_limit = 2 * (width + MOS_MAX_DIFFUSION_LENGTH_UM)
+        for name, value in junction.items():
+            limit = area_limit if name in ("ad", "as") else perimeter_limit
+            if value > limit * (1 + 1e-9):
+                violations.append(
+                    f"{name}={value:g} exceeds {limit:g} for w={width:g} "
+                    f"(junction geometry is limited to a {MOS_MAX_DIFFUSION_LENGTH_UM:g} um diffusion)"
+                )
+    return violations
+
+
 def ngspice_in_range(value: float, lower: float, upper: float) -> bool:
     """ngspice-46 INPgetModBin's metre-based comparison, including its tolerance."""
     return abs(value - lower) < 1e-9 or abs(value - upper) < 1e-9 or lower < value < upper
@@ -221,10 +273,7 @@ def matches_mos_bin(length_m: float, width_m: float, bins: list[dict]) -> bool:
 def sky130_geometry_violations(text: str, geometry: dict) -> list[str]:
     target = x_target(text)
     parameters = assignments(spice_words(text)[1:])
-    violations = []
-    for name in sorted(INTEGER_PARAMETERS & parameters.keys()):
-        if not parameters[name].is_integer():
-            violations.append(f"parameter {name} must be an integer")
+    violations = []  # integral multiplicities are checked on every X line by multiplicity_violations
     if wrapper := geometry["wrappers"].get(target):
         dimensions = {**wrapper["defaults"], **parameters}
         length, width, fingers = (dimensions[name] for name in ("l", "w", "nf"))
@@ -364,6 +413,9 @@ def main() -> int:
 
     for name in sorted(local_subcircuits & pdk_subcircuits):
         violations.append((0, f"local subcircuit shadows PDK name {name}", name))
+    for name in sorted(local_subcircuits - pdk_subcircuits):
+        if name.startswith(PDK_NAMESPACE_PREFIX):
+            violations.append((0, f"local subcircuit name {name} is in the PDK namespace {PDK_NAMESPACE_PREFIX}*", name))
 
     for number, text in lines:
         if not text or text[0] in "*;":
@@ -403,6 +455,11 @@ def main() -> int:
             target = positional[-1].lower() if positional else ""
             for reason in assignment_violations(words[1:]):
                 violations.append((number, reason, text))
+            for reason in multiplicity_violations(words[1:]):
+                violations.append((number, reason, text))
+            if target in pdk_subcircuits:
+                for reason in mos_instance_violations(target, words[1:]):
+                    violations.append((number, reason, text))
             if args.enforce_sky130_geometry:
                 for reason in sky130_geometry_violations(text, geometry):
                     violations.append((number, reason, text))
