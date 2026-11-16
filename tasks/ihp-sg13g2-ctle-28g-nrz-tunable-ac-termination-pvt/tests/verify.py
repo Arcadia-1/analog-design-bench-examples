@@ -71,7 +71,6 @@ MIN_CODE_STEP_DB = 1.0
 INBAND_EXCESS_MAX_DB = 1.0
 INBAND_DROOP_MAX_DB = 3.0
 FORWARD_REVERSE_MIN_DB = 15.0
-ACTIVE_PATH_MIN_DB = 6.0  # gate: below this at the nominal point (a passive network reads 0 dB) nothing is scored
 ABOVE_NYQUIST_EXCESS_MAX_DB = 3.0
 BW_FLOOR_HZ = 25.0e9
 LOW_CORNER_MAX_HZ = 20e3
@@ -564,18 +563,6 @@ def bias_and_power_check(rows):
     )
 
 
-def active_path(rows):
-    """None when the nominal point shows a unidirectional active path at every code, else the reason it does not."""
-    nominal = [r for r in rows if r["pvt"] == NOMINAL_PVT[0]]
-    if any("ac_error" in r or not finite_number(r.get("fwd_rev_min_db")) for r in nominal):
-        return "no valid AC measurement at the nominal point"
-    worst = min(nominal, key=lambda r: r["fwd_rev_min_db"])
-    if worst["fwd_rev_min_db"] < ACTIVE_PATH_MIN_DB:
-        return (f"no active path: forward/reverse ratio {worst['fwd_rev_min_db']:.2f}dB at the nominal point, "
-                f"{worst['code']} (gate {ACTIVE_PATH_MIN_DB:g}dB)")
-    return None
-
-
 # Each check in report order: (measurement groups it needs, function of the rows).
 CHECKS = {
     "gain_code_table": (("ac",), lambda rows: code_table_check(
@@ -597,11 +584,9 @@ CHECKS = {
 
 
 def checks(rows):
-    """Each check on its own: it fails if its measurements are missing at any point or fail a limit anywhere.
-    A circuit without an active path at the nominal point (a passive network) scores no check at all."""
-    gate = active_path(rows)
-    if gate:
-        return [(name, False, f"not scored: {gate}") for name in CHECKS]
+    """Each check on its own: it fails if its measurements are missing at any point or fail a limit anywhere. The
+    reward is 1 only if every check passes (utils.write_results), so a passive network, which fails
+    forward_reverse_ratio, scores 0 without a separate gate."""
     gaps = {kind: incomplete(rows, kind) for kind in ("ac", "zin", "kick")}
     results = []
     for name, (groups, check) in CHECKS.items():

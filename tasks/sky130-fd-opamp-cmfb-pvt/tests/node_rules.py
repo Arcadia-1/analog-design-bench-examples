@@ -10,7 +10,8 @@
 - the limits count every instance reached from fd_opamp through the subcircuit
   hierarchy, with the product of the integer `m` of every X line on the way:
   each resistor at most 10 Mohm (R / m_total), each capacitor at most 100 pF
-  (C * m_total), all capacitors together at most 200 pF.
+  (C * m_total), all capacitors together at most 200 pF, and all resistors
+  together (each R / m_total) at most 50 Mohm, which also bounds any series chain.
 Comments follow ngspice: `*` at line start, `;` anywhere, `$` at line start or
 after a space or tab (a `$` glued to a word is part of that word).
 """
@@ -19,6 +20,7 @@ import sys
 from pathlib import Path
 
 R_MAX = 10e6
+R_TOTAL_MAX = 50e6
 C_MAX = 100e-12
 C_TOTAL_MAX = 200e-12
 TOP = "fd_opamp"
@@ -39,8 +41,9 @@ def value(token: str) -> float:
 
 
 def words_of(text: str) -> list[str]:
-    """SPICE words, with optional space around '=' removed (as ngspice reads them)."""
-    return re.sub(r"\s*=\s*", "=", text).split()
+    """SPICE words as ngspice reads them: optional space around '=' removed, and
+    parentheses and commas treated as separators (so `(0 vss)` names node 0)."""
+    return re.sub(r"\s*=\s*", "=", re.sub(r"[(),]", " ", text)).split()
 
 
 def strip_comment(raw: str) -> str:
@@ -102,11 +105,12 @@ def check(path: Path) -> list[str]:
         return problems + [f"subcircuit {TOP} not found"]
 
     c_total = 0.0
+    r_total = 0.0
     # A subcircuit's lines are visited once per instance; syntax problems are reported once.
     seen_lines: set[int] = set()
 
     def walk(name: str, mult: int, stack: tuple[str, ...]) -> None:
-        nonlocal c_total
+        nonlocal c_total, r_total
         for number, line, words in subckts[name]:
             head = words[0].lower()
             first = number not in seen_lines
@@ -156,6 +160,8 @@ def check(path: Path) -> list[str]:
                 continue
             total = mult * m
             where = "" if total == 1 else f" ({total} in parallel)"
+            if head[0] == "r":
+                r_total += v / total
             if head[0] == "r" and v / total > R_MAX:
                 problems.append(f"line {number}: resistance {v / total:g} ohm exceeds {R_MAX:g} ohm{where}: {line}")
             if head[0] == "c":
@@ -164,6 +170,8 @@ def check(path: Path) -> list[str]:
                 c_total += v * total
 
     walk(TOP, 1, (TOP,))
+    if r_total > R_TOTAL_MAX:
+        problems.append(f"the resistors reached from {TOP} add up to {r_total:g} ohm, more than {R_TOTAL_MAX:g} ohm")
     if c_total > C_TOTAL_MAX:
         problems.append(f"the capacitors reached from {TOP} add up to {c_total:g} F, more than {C_TOTAL_MAX:g} F")
     return problems

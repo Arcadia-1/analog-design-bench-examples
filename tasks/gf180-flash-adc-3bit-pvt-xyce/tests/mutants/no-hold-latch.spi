@@ -1,6 +1,6 @@
 * Mutant: the hold latches are left out and the encoder is driven straight from the comparators, so the
 * outputs return to the precharge state half a period after each edge, before the read.
-* Expected: fails every check (power is not credited once transfer_codes fails); reward 0.
+* Expected: fails every check except power; reward 0.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u

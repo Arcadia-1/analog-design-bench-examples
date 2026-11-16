@@ -13,7 +13,7 @@ and the report names the run and the device. `/app/signoff/run_bench.py` applies
   an allowed PDK device with its allowed parameters ([`netlist-guide.md`](netlist-guide.md)). Every value is a
   numeric literal with an optional SPICE scale suffix (`f p n u m k meg g t`). No `.param`, `.include`, `.lib`,
   `.model`, analyses or other control lines, no `{...}`, quotes or inline comments, and no node named `0` or `gnd`
-  (use `vss`). Ideal elements stand for on-die passives: an ideal `L` is at most 5 nH and an ideal `C` at most
+  (use `vss`); no line may start with `*#`, which ngspice runs as a control command. Ideal elements stand for on-die passives: an ideal `L` is at most 5 nH and an ideal `C` at most
   50 pF. A PDK device takes `m=` up to 100 (a whole number of parallel copies; use `w` and `ng` for a wider
   device). Whole-circuit budgets count every element, each PDK device times its `m=`: total capacitance at most
   100 pF, counting ideal C, `cap_cmim` at 1.5 fF/um2, varactor gates at 5 fF/um2, MOS gates at 13 fF/um2 (lv) or

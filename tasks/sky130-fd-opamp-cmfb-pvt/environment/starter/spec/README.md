@@ -13,13 +13,13 @@ ngspice reads the Sky130 models with `set ngbehavior=hsa`, the compatibility mod
 - Common-mode point VCM = VDD/2 (0.81, 0.9 and 0.99 V at 1.62, 1.8 and 1.98 V).
 - `vcm` carries VCM. The design's common-mode feedback must hold the output common mode (`voutp` + `voutn`)/2 at it, whatever its value: besides VCM = VDD/2, grading sets VCM to 0.8 V and 1.0 V at the nominal point (`vcm_tracking`). Every bench feeds the `vcm` pin from its ideal VCM source through 1 kohm, so current the design draws from `vcm` is measured.
 - Load: each output drives 2 pF to ground and 1 Mohm to VCM in every application bench (the transconductance benches return the output through 1 kohm instead).
-- Devices: Sky130 1.8 V MOS models (`sky130_fd_pr__nfet_01v8`, `sky130_fd_pr__pfet_01v8` and their `_lvt` variants) within the modeled geometry, plus ideal resistors (at most 10 Mohm each) and capacitors (at most 100 pF each, 200 pF in all). An ideal R or C is written `Rname n1 n2 <value>` / `Cname n1 n2 <value>` with a literal value; no instance parameters except an integer multiplier `m=<n>` (n >= 1), which counts as n in parallel (R/m and C*m are what the limits apply to). These limits apply to each element and to the capacitor total, counting every instance reached from `fd_opamp` through local subcircuits: an element inside a subcircuit instantiated with `m=<n>` counts n times (the multipliers of nested X lines multiply), and an X line of a local subcircuit may carry no parameter other than an integer `m`. The limits do not bound series stacks of resistors or the gate capacitance of MOS devices, which are ordinary design choices. Comments follow ngspice: `*` at the start of a line, `;` anywhere, and `$` at the start of a line or after a space or tab; a `$` glued to a word (`50k$`) is part of that word and makes the value invalid. No sources, behavioral elements or other ideal parts. The design connects to the benches only through its eight pins: no node inside it may carry a ground name (`0`, `00`, `0.0`, `gnd`, `gnd!`, any case).
+- Devices: Sky130 1.8 V MOS models (`sky130_fd_pr__nfet_01v8`, `sky130_fd_pr__pfet_01v8` and their `_lvt` variants) within the modeled geometry, plus ideal resistors (at most 10 Mohm each, 50 Mohm in all) and capacitors (at most 100 pF each, 200 pF in all). A PDK device's `mult` must equal its `m` (default 1): the Sky130 models divide only the mismatch spread by `mult`, without multiplying the device. An ideal R or C is written `Rname n1 n2 <value>` / `Cname n1 n2 <value>` with a literal value; no instance parameters except an integer multiplier `m=<n>` (n >= 1), which counts as n in parallel (R/m and C*m are what the limits apply to). These limits apply to each element and to the resistor and capacitor totals, counting every instance reached from `fd_opamp` through local subcircuits: an element inside a subcircuit instantiated with `m=<n>` counts n times (the multipliers of nested X lines multiply), and an X line of a local subcircuit may carry no parameter other than an integer `m`. The 50 Mohm resistor total also bounds any series chain of resistors. The limits do not bound the gate capacitance of MOS devices, an ordinary design choice. Parentheses and commas in a line separate words as in ngspice, so `R1 (0 vss) 1` names node `0`. Comments follow ngspice: `*` at the start of a line, `;` anywhere, and `$` at the start of a line or after a space or tab; a `$` glued to a word (`50k$`) is part of that word and makes the value invalid. No sources, behavioral elements or other ideal parts. The design connects to the benches only through its eight pins: no node inside it may carry a ground name (`0`, `00`, `0.0`, `gnd`, `gnd!`, any case).
 - PVT points: the corners ff, ss, fs and sf, each at 1.62 and 1.98 V and at -40 and 125 C (16 points), plus the nominal point (tt, 1.8 V, 27 C). These 17 points are a representative subset (the vertices of the declared supply and temperature ranges at the skew corners), not the complete 45-point product; the operating-range sweeps below cover the interior at tt.
 - Critical loads: the 16 PVT points are repeated with a +20 uA and a -20 uA DC current into each output, and with the 1 Mohm load returned to ground instead of VCM (48 more points).
 
 ## Scored checks
 
-Each check passes or fails; the reward is the fraction of checks that pass. "Every PVT point" means the 16 PVT points and the nominal point; "every PVT and load point" adds the 48 critical-load points.
+Each check passes or fails. The reward is 1 only when every check passes, and 0 otherwise; the report lists every check with its measurement. "Every PVT point" means the 16 PVT points and the nominal point; "every PVT and load point" adds the 48 critical-load points.
 
 | Check | Requirement |
 |---|---|
@@ -45,6 +45,7 @@ Each check passes or fails; the reward is the fraction of checks that pass. "Eve
 | `pvt_vcm_pin_current` | Current drawn from the `vcm` reference <= 1 uA at every PVT point. |
 | `bias_current_tracking` | The supply current follows the bias current with exponent >= 0.7 at the nominal point. |
 | `operating_range` | At every sampled point of the supply sweep (1.62 to 1.98 V in 90 mV steps) and the temperature sweep (-40 to 125 C in 27.5 C steps), both at tt: open-loop gain >= 70 dB, unity-gain frequency >= 8 MHz and phase margin >= 60 deg. |
+| `power_up_common_mode` | In the power-up/power-down test (5 ms and 10 ms supply ramps, at tt 1.8 V and 27 C and at -40 and 125 C), the output common mode is within 20 mV of VCM no later than 1 ms after the end of each ramp and stays there until the end of the 2 ms hold. |
 | `transient_stability` | No oscillation during power-up/power-down or supply surges at -40, 27 and 125 C, and no output phase reversal at the nominal point. |
 
 ## How the scored quantities are measured
@@ -86,7 +87,7 @@ Each check passes or fails; the reward is the fraction of checks that pass. "Eve
   python3 /app/node_rules.py /app/circuit.spi
   ```
 
-  The first allows only the four 1.8 V MOS devices from the PDK (no MIM capacitors, poly resistors or other PDK cells). The second enforces this task's rules: no ground-named node (`0`, `00`, `0.0`, `gnd`, `gnd!`, any case), R and C written with a literal value and at most an integer `m`, resistors at most 10 Mohm, capacitors at most 100 pF each and 200 pF in all. Where `/opt/analog-arena/SKY130_NETLIST_GUIDE.md` says otherwise (it allows node `0`), these rules override it.
+  The first allows only the four 1.8 V MOS devices from the PDK (no MIM capacitors, poly resistors or other PDK cells). The second enforces this task's rules: no ground-named node (`0`, `00`, `0.0`, `gnd`, `gnd!`, any case), R and C written with a literal value and at most an integer `m`, resistors at most 10 Mohm each and 50 Mohm in all, capacitors at most 100 pF each and 200 pF in all. Where `/opt/analog-arena/SKY130_NETLIST_GUIDE.md` says otherwise (it allows node `0`), these rules override it.
 
 ## Public benches
 
@@ -101,7 +102,7 @@ From `/app`, `ngspice -b testbench/<bench>.spi` runs each at the nominal point (
 - `tb_rejection_tt.spi`: input-CM to output-CM gain and supply rejection at the output common mode;
 - `tb_noise_tt.spi`: input-referred noise density;
 - `tb_thd_tt.spi`: THD at 10 kHz and 1 Vpp per output; with a higher `FREQ`, the full-power bandwidth (1 % THD at the same amplitude);
-- `tb_powerup_tt.spi`: output activity after a 5 ms supply ramp;
+- `tb_powerup_tt.spi`: output activity after a 5 ms supply ramp and the output common-mode error from 1 ms after the ramp to the end of the hold;
 - `tb_vcm_tracking_tt.spi`: the output common-mode error with vcm at 0.8 V and 1.0 V;
 - `tb_surge_tt.spi`: recovery of Vod and the output common mode after +/-50 mV supply steps at 300 kHz;
 - `tb_phase_reversal_tt.spi`: the sign of the output current across the full differential input range.

@@ -9,6 +9,7 @@ checks the device voltage ratings. A broken rule is recorded in VIOLATIONS and t
 
 import os
 import re
+from array import array
 import subprocess
 import time
 from pathlib import Path
@@ -35,32 +36,39 @@ class RuleError(Exception):
     pass
 
 
-def read_raw(path):
-    """Real-valued ngspice ASCII rawfile: {vector name: [values]} (voltage names without v())."""
-    lines = Path(path).read_text().splitlines()
-    try:
-        nvars = int(next(l for l in lines if l.startswith("No. Variables:")).split(":")[1])
-        npts = int(next(l for l in lines if l.startswith("No. Points:")).split(":")[1])
-        flags = next((l for l in lines if l.startswith("Flags:")), "Flags: real")
-        start = lines.index("Variables:") + 1
-        values_at = lines.index("Values:") + 1
-    except (StopIteration, ValueError) as error:
-        raise RuleError(f"unreadable rawfile {Path(path).name}") from error
-    if "complex" in flags:
-        raise RuleError(f"rawfile {Path(path).name} is complex")
+def read_raw(path, wanted=None):
+    """Real-valued ngspice ASCII rawfile: {vector name: array of values} (voltage names without v()), streamed, and
+    keeping only the vectors in `wanted` when given (a transient of every node would otherwise fill the memory)."""
+    header = {}
     names = []
-    for line in lines[start:start + nvars]:
-        name = line.split()[1].lower()
-        match = re.fullmatch(r"v\((.+)\)", name)
-        names.append(match.group(1) if match else name)
-    tokens = " ".join(lines[values_at:]).split()
-    data = {name: [] for name in names}
-    position = 0
-    for _ in range(npts):
-        position += 1  # point index
-        for name in names:
-            data[name].append(float(tokens[position]))
-            position += 1
+    with open(path) as handle:
+        for line in handle:
+            line = line.rstrip("\n")
+            if line == "Variables:":
+                break
+            key, _, value = line.partition(":")
+            header[key] = value.strip()
+        try:
+            nvars, npts = int(header["No. Variables"]), int(header["No. Points"])
+        except (KeyError, ValueError) as error:
+            raise RuleError(f"unreadable rawfile {Path(path).name}") from error
+        if "complex" in header.get("Flags", "real"):
+            raise RuleError(f"rawfile {Path(path).name} is complex")
+        for _ in range(nvars):
+            name = handle.readline().split()[1].lower()
+            match = re.fullmatch(r"v\((.+)\)", name)
+            names.append(match.group(1) if match else name)
+        if handle.readline().strip() != "Values:":
+            raise RuleError(f"unreadable rawfile {Path(path).name}")
+        keep = [i for i, name in enumerate(names) if wanted is None or name in wanted]
+        data = {names[i]: array("d") for i in keep}
+        columns = [(i, data[names[i]]) for i in keep]
+        tokens = (token for line in handle for token in line.split())
+        for _ in range(npts):
+            next(tokens)  # point index
+            row = [next(tokens) for _ in range(nvars)]
+            for i, column in columns:
+                column.append(float(row[i]))
     return data
 
 
@@ -167,10 +175,11 @@ def run(cmd, cwd, **kwargs):
             return result
     try:
         for raw in sorted(Path(cwd).glob("signoff_*.raw")):
-            violation = check_ratings(devices, read_raw(raw), f"{run_name}/{raw.stem}", "_op" in raw.stem)
+            wanted = {net for _path, _model, pins in devices for net in pins.values()}
+            violation = check_ratings(devices, read_raw(raw, wanted), f"{run_name}/{raw.stem}", "_op" in raw.stem)
             if violation:
                 return fail(cmd, violation, result.stdout)
-    except (RuleError, ValueError, IndexError) as error:
+    except (RuleError, ValueError, IndexError, StopIteration) as error:
         return fail(cmd, f"ratings: {error}", result.stdout)
     return result
 

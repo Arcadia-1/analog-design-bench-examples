@@ -1,7 +1,9 @@
 * Power-up stability in the gain -1 network at tt / 1.8 V / 27 C: VDD ramps
 * from 0 to 1.8 V in 5 ms and holds for 2 ms.  Prints the peak-to-peak of Vod
 * and of the output common mode over the last 1 ms of the hold; anything well
-* above a few millivolts means the amplifier oscillates.  Grading also ramps
+* above a few millivolts means the amplifier oscillates.  Also prints the
+* largest abs(Vocm - VCM) from 1 ms after the ramp to the end of the hold
+* (scored as power_up_common_mode: at most 20 mV).  Grading also ramps
 * down, uses 10 ms ramps, adds supply surges and runs at -40 and 125 C.
 * Run with `ngspice -b testbench/tb_powerup_tt.spi`.
 .lib "/opt/sky130/continuous/sky130.lib.spice" tt
@@ -29,6 +31,8 @@ let vod = v(outp) - v(outn)
 let vocm = 0.5 * (v(outp) + v(outn))
 meas tran vod_pp_v PP vod FROM=6m TO=7m
 meas tran vocm_pp_v PP vocm FROM=6m TO=7m
+let cm_err = abs(vocm - 0.9)
+meas tran cm_err_max_after_1ms_v MAX cm_err FROM=6m TO=7m
 quit
 .endc
 .end

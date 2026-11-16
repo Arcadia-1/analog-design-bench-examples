@@ -1,0 +1,246 @@
+* Mutant of the reference (cheat): two RC sections in the CMFB sense path, each 100 x 10 Mohm in series (1 Gohm) with 30 pF, and 30 pF on ce, so after power-up the output common mode is still far from vcm.
+.subckt fd_opamp vss ibias vdd vcm vinp vinn voutp voutn
+* bias: 10 uA reference into an NMOS diode
+XB0 ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=12.8 nf=4
+XTAIL tail ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=76.8 nf=24
+XT2 t2 ibias vss vss sky130_fd_pr__nfet_01v8 l=8 w=72 nf=18
+* stage 1 (vinp -> o1n inverting)
+XM1 o1n vinp tail vss sky130_fd_pr__nfet_01v8_lvt l=2 w=16 nf=4
+XM2 o1p vinn tail vss sky130_fd_pr__nfet_01v8_lvt l=2 w=16 nf=4
+XM3 o1n c1 vdd vdd sky130_fd_pr__pfet_01v8_lvt l=2 w=144 nf=36
+XM4 o1p c1 vdd vdd sky130_fd_pr__pfet_01v8_lvt l=2 w=144 nf=36
+R1A o1n c1 1meg
+R1B o1p c1 1meg
+* stage 2 (o1n -> dB non-inverting, o1p -> dA non-inverting)
+XA2 dA o1n t2 vss sky130_fd_pr__nfet_01v8_lvt l=0.5 w=8 nf=2
+XB2 dB o1p t2 vss sky130_fd_pr__nfet_01v8_lvt l=0.5 w=8 nf=2
+XL2A dA ce vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+XL2B dB ce vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+* stage 3: LVT PMOS common source, fixed 150 uA NMOS sink
+XM5 voutp dB vdd vdd sky130_fd_pr__pfet_01v8_lvt l=0.5 w=30 nf=8
+XM6 voutn dA vdd vdd sky130_fd_pr__pfet_01v8_lvt l=0.5 w=30 nf=8
+XS5 voutp ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=192 nf=60
+XS6 voutn ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=192 nf=60
+* nested Miller compensation (per half circuit), both capacitors with series resistors
+RM1P voutp m1p 1.5k
+CM1P m1p o1n 4p
+RM2P voutp m2p 6k
+CM2P m2p dB 1.2p
+RM1N voutn m1n 1.5k
+CM1N m1n o1p 4p
+RM2N voutn m2n 6k
+CM2N m2n dA 1.2p
+* CMFB: resistive output-CM sense; error pair; sense-side PMOS diode ce
+RS1 voutp cms 2meg
+RS2 voutn cms 2meg
+CS1 voutp cms 100f
+CS2 voutn cms 100f
+XE0 te ibias vss vss sky130_fd_pr__nfet_01v8 l=8 w=72 nf=18
+XE1 ea vcm te vss sky130_fd_pr__nfet_01v8_lvt l=1 w=32 nf=8
+XE2 ce s2 te vss sky130_fd_pr__nfet_01v8_lvt l=1 w=32 nf=8
+Rka0 cms ka1 10meg
+Rka1 ka1 ka2 10meg
+Rka2 ka2 ka3 10meg
+Rka3 ka3 ka4 10meg
+Rka4 ka4 ka5 10meg
+Rka5 ka5 ka6 10meg
+Rka6 ka6 ka7 10meg
+Rka7 ka7 ka8 10meg
+Rka8 ka8 ka9 10meg
+Rka9 ka9 ka10 10meg
+Rka10 ka10 ka11 10meg
+Rka11 ka11 ka12 10meg
+Rka12 ka12 ka13 10meg
+Rka13 ka13 ka14 10meg
+Rka14 ka14 ka15 10meg
+Rka15 ka15 ka16 10meg
+Rka16 ka16 ka17 10meg
+Rka17 ka17 ka18 10meg
+Rka18 ka18 ka19 10meg
+Rka19 ka19 ka20 10meg
+Rka20 ka20 ka21 10meg
+Rka21 ka21 ka22 10meg
+Rka22 ka22 ka23 10meg
+Rka23 ka23 ka24 10meg
+Rka24 ka24 ka25 10meg
+Rka25 ka25 ka26 10meg
+Rka26 ka26 ka27 10meg
+Rka27 ka27 ka28 10meg
+Rka28 ka28 ka29 10meg
+Rka29 ka29 ka30 10meg
+Rka30 ka30 ka31 10meg
+Rka31 ka31 ka32 10meg
+Rka32 ka32 ka33 10meg
+Rka33 ka33 ka34 10meg
+Rka34 ka34 ka35 10meg
+Rka35 ka35 ka36 10meg
+Rka36 ka36 ka37 10meg
+Rka37 ka37 ka38 10meg
+Rka38 ka38 ka39 10meg
+Rka39 ka39 ka40 10meg
+Rka40 ka40 ka41 10meg
+Rka41 ka41 ka42 10meg
+Rka42 ka42 ka43 10meg
+Rka43 ka43 ka44 10meg
+Rka44 ka44 ka45 10meg
+Rka45 ka45 ka46 10meg
+Rka46 ka46 ka47 10meg
+Rka47 ka47 ka48 10meg
+Rka48 ka48 ka49 10meg
+Rka49 ka49 ka50 10meg
+Rka50 ka50 ka51 10meg
+Rka51 ka51 ka52 10meg
+Rka52 ka52 ka53 10meg
+Rka53 ka53 ka54 10meg
+Rka54 ka54 ka55 10meg
+Rka55 ka55 ka56 10meg
+Rka56 ka56 ka57 10meg
+Rka57 ka57 ka58 10meg
+Rka58 ka58 ka59 10meg
+Rka59 ka59 ka60 10meg
+Rka60 ka60 ka61 10meg
+Rka61 ka61 ka62 10meg
+Rka62 ka62 ka63 10meg
+Rka63 ka63 ka64 10meg
+Rka64 ka64 ka65 10meg
+Rka65 ka65 ka66 10meg
+Rka66 ka66 ka67 10meg
+Rka67 ka67 ka68 10meg
+Rka68 ka68 ka69 10meg
+Rka69 ka69 ka70 10meg
+Rka70 ka70 ka71 10meg
+Rka71 ka71 ka72 10meg
+Rka72 ka72 ka73 10meg
+Rka73 ka73 ka74 10meg
+Rka74 ka74 ka75 10meg
+Rka75 ka75 ka76 10meg
+Rka76 ka76 ka77 10meg
+Rka77 ka77 ka78 10meg
+Rka78 ka78 ka79 10meg
+Rka79 ka79 ka80 10meg
+Rka80 ka80 ka81 10meg
+Rka81 ka81 ka82 10meg
+Rka82 ka82 ka83 10meg
+Rka83 ka83 ka84 10meg
+Rka84 ka84 ka85 10meg
+Rka85 ka85 ka86 10meg
+Rka86 ka86 ka87 10meg
+Rka87 ka87 ka88 10meg
+Rka88 ka88 ka89 10meg
+Rka89 ka89 ka90 10meg
+Rka90 ka90 ka91 10meg
+Rka91 ka91 ka92 10meg
+Rka92 ka92 ka93 10meg
+Rka93 ka93 ka94 10meg
+Rka94 ka94 ka95 10meg
+Rka95 ka95 ka96 10meg
+Rka96 ka96 ka97 10meg
+Rka97 ka97 ka98 10meg
+Rka98 ka98 ka99 10meg
+Rka99 ka99 s1 10meg
+CK1 s1 vss 30p
+Rkb0 s1 kb1 10meg
+Rkb1 kb1 kb2 10meg
+Rkb2 kb2 kb3 10meg
+Rkb3 kb3 kb4 10meg
+Rkb4 kb4 kb5 10meg
+Rkb5 kb5 kb6 10meg
+Rkb6 kb6 kb7 10meg
+Rkb7 kb7 kb8 10meg
+Rkb8 kb8 kb9 10meg
+Rkb9 kb9 kb10 10meg
+Rkb10 kb10 kb11 10meg
+Rkb11 kb11 kb12 10meg
+Rkb12 kb12 kb13 10meg
+Rkb13 kb13 kb14 10meg
+Rkb14 kb14 kb15 10meg
+Rkb15 kb15 kb16 10meg
+Rkb16 kb16 kb17 10meg
+Rkb17 kb17 kb18 10meg
+Rkb18 kb18 kb19 10meg
+Rkb19 kb19 kb20 10meg
+Rkb20 kb20 kb21 10meg
+Rkb21 kb21 kb22 10meg
+Rkb22 kb22 kb23 10meg
+Rkb23 kb23 kb24 10meg
+Rkb24 kb24 kb25 10meg
+Rkb25 kb25 kb26 10meg
+Rkb26 kb26 kb27 10meg
+Rkb27 kb27 kb28 10meg
+Rkb28 kb28 kb29 10meg
+Rkb29 kb29 kb30 10meg
+Rkb30 kb30 kb31 10meg
+Rkb31 kb31 kb32 10meg
+Rkb32 kb32 kb33 10meg
+Rkb33 kb33 kb34 10meg
+Rkb34 kb34 kb35 10meg
+Rkb35 kb35 kb36 10meg
+Rkb36 kb36 kb37 10meg
+Rkb37 kb37 kb38 10meg
+Rkb38 kb38 kb39 10meg
+Rkb39 kb39 kb40 10meg
+Rkb40 kb40 kb41 10meg
+Rkb41 kb41 kb42 10meg
+Rkb42 kb42 kb43 10meg
+Rkb43 kb43 kb44 10meg
+Rkb44 kb44 kb45 10meg
+Rkb45 kb45 kb46 10meg
+Rkb46 kb46 kb47 10meg
+Rkb47 kb47 kb48 10meg
+Rkb48 kb48 kb49 10meg
+Rkb49 kb49 kb50 10meg
+Rkb50 kb50 kb51 10meg
+Rkb51 kb51 kb52 10meg
+Rkb52 kb52 kb53 10meg
+Rkb53 kb53 kb54 10meg
+Rkb54 kb54 kb55 10meg
+Rkb55 kb55 kb56 10meg
+Rkb56 kb56 kb57 10meg
+Rkb57 kb57 kb58 10meg
+Rkb58 kb58 kb59 10meg
+Rkb59 kb59 kb60 10meg
+Rkb60 kb60 kb61 10meg
+Rkb61 kb61 kb62 10meg
+Rkb62 kb62 kb63 10meg
+Rkb63 kb63 kb64 10meg
+Rkb64 kb64 kb65 10meg
+Rkb65 kb65 kb66 10meg
+Rkb66 kb66 kb67 10meg
+Rkb67 kb67 kb68 10meg
+Rkb68 kb68 kb69 10meg
+Rkb69 kb69 kb70 10meg
+Rkb70 kb70 kb71 10meg
+Rkb71 kb71 kb72 10meg
+Rkb72 kb72 kb73 10meg
+Rkb73 kb73 kb74 10meg
+Rkb74 kb74 kb75 10meg
+Rkb75 kb75 kb76 10meg
+Rkb76 kb76 kb77 10meg
+Rkb77 kb77 kb78 10meg
+Rkb78 kb78 kb79 10meg
+Rkb79 kb79 kb80 10meg
+Rkb80 kb80 kb81 10meg
+Rkb81 kb81 kb82 10meg
+Rkb82 kb82 kb83 10meg
+Rkb83 kb83 kb84 10meg
+Rkb84 kb84 kb85 10meg
+Rkb85 kb85 kb86 10meg
+Rkb86 kb86 kb87 10meg
+Rkb87 kb87 kb88 10meg
+Rkb88 kb88 kb89 10meg
+Rkb89 kb89 kb90 10meg
+Rkb90 kb90 kb91 10meg
+Rkb91 kb91 kb92 10meg
+Rkb92 kb92 kb93 10meg
+Rkb93 kb93 kb94 10meg
+Rkb94 kb94 kb95 10meg
+Rkb95 kb95 kb96 10meg
+Rkb96 kb96 kb97 10meg
+Rkb97 kb97 kb98 10meg
+Rkb98 kb98 kb99 10meg
+Rkb99 kb99 s2 10meg
+CK2 s2 vss 30p
+XE3 ea ea vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+XE4 ce ce vdd vdd sky130_fd_pr__pfet_01v8_lvt l=1 w=4 nf=1
+CCE ce vdd 30p
+.ends fd_opamp

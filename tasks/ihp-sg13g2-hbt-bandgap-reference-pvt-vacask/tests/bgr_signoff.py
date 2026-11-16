@@ -27,6 +27,8 @@ CORNERS = {  # mos, hbt, res, cap library sections
 }
 # Operating-point analyses of the benches; "tr" is the only transient.
 OP_ANALYSES = ("dc", "load", "nslo", "nshi", "off", "target")
+TRAN_ANALYSES = ("tr", "dis")
+DISABLE_WINDOW = 2e-6
 
 # Signoff limits (spec/signoff-rules.md).
 # MOS: rated voltage + 10 % at DC operating points, a further 10 % during transients.
@@ -169,8 +171,8 @@ def signoff_violations(devices, plots, prefix=""):
     """Rule violations over every operating-point and transient analysis of one run."""
     found = []
     for name, plot in plots.items():
-        if name in OP_ANALYSES or name == "tr":
-            found += rule_violations(devices, plot, prefix + name, dc=name != "tr")
+        if name in OP_ANALYSES or name in TRAN_ANALYSES:
+            found += rule_violations(devices, plot, prefix + name, dc=name not in TRAN_ANALYSES)
     return found
 
 
@@ -276,6 +278,16 @@ def render(template, **values):
             raise KeyError(f"bench template token {match.group(0)} has no value")
         return str(values[key])
     return re.sub(r"__([A-Z0-9_]+)__", sub, template)
+
+
+def disable_metrics(plots):
+    """Pin currents and vref over the last DISABLE_WINDOW of the disable transient (analysis "dis")."""
+    tr = plots["dis"]
+    t = tr.real("time")
+    window = t >= t[-1] - DISABLE_WINDOW
+    i_vdd, i_en = pin_currents(tr)
+    return {"i_vdd": float(np.max(np.abs(i_vdd[window]))), "i_en": float(np.max(np.abs(i_en[window]))),
+            "vref": float(np.max(tr.real("vref")[window])), "vref_before": float(np.interp(19e-6, t, tr.real("vref")))}
 
 
 def edge_end(deck):

@@ -64,6 +64,7 @@ COND = {
     "power_hold_s": 0.002,
     "power_tmax_s": 1e-06,
     "power_settle_band_v": 0.001,
+    "power_cm_tolerance_v": 0.02,
     "oscillation_grid_s": 1e-07,
     "oscillation_window_s": 2e-06,
     "oscillation_threshold_v": 0.002,
@@ -85,6 +86,7 @@ SPEC = {
     "en_max_v_rthz": 6e-08, "thd_max_db": -70.0, "fpbw_min_hz": 3e5, "offset_sigma_max_v": 0.005,
     "vos_max_v": 0.002, "icc_max_a": 0.00045, "vcm_current_max_a": 1e-06, "icc_tracking_min": 0.7,
     "supply_range_v": [1.62, 1.98], "temp_range_c": [-40.0, 125.0],
+    "power_cm_settle_max_s": 1e-3,
 }
 
 
@@ -854,6 +856,10 @@ def power_cycle_metrics(tran: Plot, t_up: float, t_hold: float, t_down: float) -
     outside = np.nonzero((t >= t_up) & (error > COND["power_settle_band_v"]) & (t < t_hold))[0]
     metrics["power_up_settle_s"] = float(t[outside[-1]] - t_up) if len(outside) else 0.0
     metrics["hold_offset_v"] = offset
+    # Scored: the output common mode must reach VCM itself, not just settle somewhere.
+    window = (t >= t_up) & (t < t_hold)
+    away = np.nonzero(window & (np.abs(vocm - tran["v(vcm)"]) > COND["power_cm_tolerance_v"]))[0]
+    metrics["cm_to_vcm_s"] = float(t[away[-1]] - t_up) if len(away) else 0.0
     metrics["oscillation"] = bool(worst > COND["oscillation_max_busy_s"])
     return metrics
 
@@ -1297,6 +1303,24 @@ def oscillation_flags(result: dict) -> list[str]:
     return flags
 
 
+def power_up_cm(result: dict) -> tuple[float | None, list[str]]:
+    """Worst time after the end of each supply ramp until the output common mode stays within
+    the tolerance of VCM, over the power-cycle runs at the nominal point and the temperature extremes."""
+    runs = [("nominal", result["nominal"].get("FD-25", {}).get("metrics"))]
+    runs += [(tag, tests.get("FD-25")) for tag, tests in result["temperature_extremes"].items()]
+    worst, missing = 0.0, []
+    for where, metrics in runs:
+        if not isinstance(metrics, dict) or "skipped" in metrics:
+            missing.append(where)
+            continue
+        values = [x for k, x in metrics.items() if k.startswith("cm_to_vcm_s_")]
+        if len(values) != len(COND["power_ramps_s"]):
+            missing.append(where)
+            continue
+        worst = max(worst, *values)
+    return (None if missing else worst), missing
+
+
 def score(result: dict) -> tuple[list[tuple[str, bool, str]], dict]:
     """Checks (name, passed, message) and the scored measurements."""
     v = View(result)
@@ -1446,6 +1470,13 @@ def score(result: dict) -> tuple[list[tuple[str, bool, str]], dict]:
           le(vdd_lo, want_v[0]) and ge(vdd_hi, want_v[1]) and le(t_lo, want_t[0]) and ge(t_hi, want_t[1]),
           f"supply {fmt(vdd_lo)}..{fmt(vdd_hi)} V (must cover {want_v[0]:g}..{want_v[1]:g} V), "
           f"temperature {fmt(t_lo)}..{fmt(t_hi)} C (must cover {want_t[0]:g}..{want_t[1]:g} C)")
+
+    cm_up, cm_missing = power_up_cm(result)
+    meas["power_up_cm_settle_s"] = cm_up
+    check("power_up_common_mode", le(cm_up, s["power_cm_settle_max_s"]),
+          f"after each supply ramp the output common mode is within {COND['power_cm_tolerance_v'] * 1e3:g} mV of VCM "
+          f"after {fmt(cm_up, 1e6)} us at worst (limit {s['power_cm_settle_max_s'] * 1e6:g} us, nominal and -40/125 C)"
+          if cm_up is not None else f"power-cycle runs missing or skipped at {', '.join(cm_missing)}")
 
     flags = oscillation_flags(result)
     check("transient_stability", not flags,

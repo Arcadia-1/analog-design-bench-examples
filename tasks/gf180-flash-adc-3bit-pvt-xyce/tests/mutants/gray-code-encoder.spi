@@ -1,5 +1,5 @@
 * Mutant: the encoder outputs Gray code (b1 = q2.!q6, b0 = q1.!q3 + q5.!q7) instead of binary.
-* Expected: codes 2, 3, 5 and 6 read wrong; fails transfer_codes, overrange_codes, both SNDR checks; power not credited.
+* Expected: codes 2, 3, 5 and 6 read wrong; fails transfer_codes, overrange_codes and both SNDR checks; reward 0.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u

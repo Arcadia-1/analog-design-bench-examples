@@ -42,8 +42,9 @@ same way.
 
 ## Coverage
 
-Every bench runs at every corner and every supply. This is the complete
-product of the sets below, not a representative subset.
+The DC, small-signal and startup benches run at every corner and every
+supply, the complete product of the sets below. The disable bench covers a
+representative subset, stated with it.
 
 - **DC bench**: operating points at 35 temperatures (-40 C to 125 C in 5 C
   steps, and 27 C) for `vref_accuracy`, `temperature_coefficient`,
@@ -57,21 +58,16 @@ product of the sets below, not a representative subset.
   - `ramp-100us`: the same in 100 µs; 2 pF on `vref`.
   - `enable`: `vdd` is at the supply from the start; the enable source rises
     from 0 V to the supply in 100 ns, starting at 2 µs; 20 pF on `vref`.
+- **Disable bench** (20 runs: every corner, 3.0 V and 3.6 V, -40 C and
+  125 C; 20 pF on `vref`): `vdd` and the enable source rise together from 0 V
+  in 1 µs from 1 µs, the circuit runs enabled until 20 µs, then the enable
+  source falls to 0 V in 100 ns, and the transient ends 20 µs later.
 
 ## Scored checks
 
-Each check passes or fails, and must pass at every point it covers; the reward
-is the fraction of the 10 checks that pass, with two exceptions that score 0:
-a broken rule of [`signoff-rules.md`](signoff-rules.md), and a circuit that is
-not a reference at all: one whose `vref` leaves 0.9-1.3 V at any DC point,
-whose line regulation exceeds 20 mV/V at any corner and temperature, whose
-temperature coefficient exceeds 500 ppm/C at any corner and supply (a bare
-Vbe, an untilted Vbe multiplier or a diode stack is about 1000 ppm/C or more;
-a circuit compensated with resistor temperature coefficients is graded like
-any other reference), or whose
-DC bench fails to simulate. These coarse limits only separate references from
-dividers, dead outputs and supply followers; the scored limits below are
-separate checks.
+Each check passes or fails, and must pass at every point it covers. The reward
+is 1 if all 10 checks pass and no rule of [`signoff-rules.md`](signoff-rules.md)
+is broken, and 0 otherwise; the verifier's report still lists every check.
 
 | Check | Requirement |
 |---|---|
@@ -82,7 +78,7 @@ separate checks.
 | `psrr_10khz` | Supply rejection at 10 kHz at least 40 dB |
 | `noise_10khz` | Output noise density at 10 kHz at most 1 µV/√Hz |
 | `quiescent_current` | \|current of the supply\| + \|current of the enable source\| at most 100 µA at every DC point |
-| `shutdown` | With the enable source at 0 V: at most 1 µA through the supply and at most 1 µA through the enable source, each in either direction, and `vref` at most 0.1 V |
+| `shutdown` | With the enable source at 0 V, in the DC bench and in the last 2 µs of every disable-bench transient: at most 1 µA through the supply and at most 1 µA through the enable source, each in either direction, and `vref` at most 0.1 V |
 | `startup_settling` | After every startup stimulus `vref` settles within ±5 mV of the target in 10 µs; and the operating point does not depend on the initial guess |
 | `startup_overshoot` | After every startup stimulus `vref` never exceeds the target by more than 50 mV |
 
@@ -152,8 +148,8 @@ The benches in `/app/testbench/` run at `tt`, 3.3 V and 27 C (the DC bench also
 at 3.0 V and 3.6 V and at ten temperatures) with the same sources, metric
 definitions and rules as grading. They differ from the hidden ones in
 coverage and stimuli: 10 pF on `vref` everywhere, a 5 µA load step, a 10 µs
-supply ramp (`tb_startup_tt.sim`) and a 1 µs enable edge
-(`tb_enable_tt.sim`).
+supply ramp (`tb_startup_tt.sim`), a 1 µs enable edge (`tb_enable_tt.sim`),
+and the disable sequence at 10 pF (`tb_disable_tt.sim`).
 
 `vacask` runs a bench as it is and writes one raw file per analysis; run it in
 the folder of the bench (`.vacaskrc.toml` there points VACASK at the PDK):
@@ -171,6 +167,7 @@ python3 signoff/run_bench.py testbench/tb_dc_tt.sim
 python3 signoff/run_bench.py testbench/tb_ac_tt.sim
 python3 signoff/run_bench.py testbench/tb_startup_tt.sim
 python3 signoff/run_bench.py testbench/tb_enable_tt.sim
+python3 signoff/run_bench.py testbench/tb_disable_tt.sim
 ```
 
 A broken rule prints a `SIGNOFF RULE:` line and exits with code 3. A clean run

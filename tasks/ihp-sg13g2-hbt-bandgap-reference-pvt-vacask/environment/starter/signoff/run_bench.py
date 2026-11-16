@@ -57,6 +57,13 @@ def main():
         print(f"  target operating point       {m['target']:.4f} V")
         print(f"  settling to +-{bs.SETTLE_BAND * 1e3:.0f} mV           {m['settle_s'] * 1e6:.2f} us")
         print(f"  overshoot above the target   {m['overshoot_v'] * 1e3:.2f} mV")
+    if "dis" in plots:
+        m = bs.disable_metrics(plots)
+        print(f"Disable metrics (last {bs.DISABLE_WINDOW * 1e6:.0f} us, enable source at 0 V)")
+        print(f"  vref before the enable edge  {m['vref_before']:.4f} V")
+        print(f"  supply current               {m['i_vdd'] * 1e9:.2f} nA")
+        print(f"  enable-source current        {m['i_en'] * 1e9:.2f} nA")
+        print(f"  vref                         {m['vref']:.4f} V")
     for line in violations:
         print(f"SIGNOFF RULE: {line}")
     return 3 if violations else 0

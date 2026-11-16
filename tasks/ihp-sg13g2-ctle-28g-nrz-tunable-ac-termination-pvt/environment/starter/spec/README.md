@@ -84,15 +84,13 @@ performance, interconnect extraction and package parasitics are not graded.
 
 ## Scored checks
 
-Each check passes or fails on its own, over every graded point and code; the
-reward is the fraction that pass. A check fails if its limit is broken
-anywhere, or if a simulation it needs did not produce its measurements
-(non-convergence, or a broken signoff rule, which also scores the task 0).
-The two stability checks also need a valid operating point (the AC run) at
-the same point and code. A circuit with no active path at the nominal point
-(forward/reverse ratio below 6 dB at any code there; any passive network
-reads 0 dB) scores no check. A forward/reverse ratio between 6 and 15 dB
-fails only `forward_reverse_ratio`.
+Each check passes or fails on its own, over every graded point and code. The
+reward is 1 only if every check passes, and 0 otherwise; the report still
+lists how many checks passed and why each failed. A check fails if its limit
+is broken anywhere, or if a simulation it needs did not produce its
+measurements (non-convergence, or a broken signoff rule, which also scores
+the task 0). The two stability checks also need a valid operating point (the
+AC run) at the same point and code.
 
 | Check | Requirement |
 |---|---|

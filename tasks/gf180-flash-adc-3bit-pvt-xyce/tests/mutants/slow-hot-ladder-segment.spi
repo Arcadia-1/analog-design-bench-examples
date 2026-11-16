@@ -1,7 +1,7 @@
 * Mutant: 75 ohm of ladder segment 4 made by an NMOS switched on from vdd. Its resistance rises at a slow
 * corner, high temperature and low supply, which moves threshold 4 and its neighbours. Every typical run passes;
 * only the transfer bench at ss / 3.0 V / 125 C reads a code wrong.
-* Expected: fails transfer_codes at one corner, which also withholds power credit.
+* Expected: fails only transfer_codes, at one corner; reward 0.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u
