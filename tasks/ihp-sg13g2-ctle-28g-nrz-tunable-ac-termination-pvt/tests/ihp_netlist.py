@@ -75,6 +75,8 @@ def logical_lines(text):
     lines = []
     for raw in text.splitlines():
         line = raw.strip()
+        if line.startswith("*#"):
+            raise NetlistError("a line starting with *# is not allowed (ngspice runs it as a control command)")
         if not line or line.startswith("*"):
             continue
         if line.startswith("+"):

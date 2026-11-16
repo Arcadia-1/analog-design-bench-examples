@@ -101,7 +101,6 @@ def score(rows: list[dict]) -> list[tuple[str, bool, str]]:
                     "every code center and every input 0.3 LSB from a threshold converts correctly"),
         wrong_codes("overrange_codes", ("overrange",), "inputs below vrefn read 0 and above vrefp read 7"),
     ]
-    transfer_ok = checks[0][1]
     done, note = runs("transfer", "sine", "nyquist")
     found = [f"{r['label']}: {m}" for r in done for m in r["bad_levels"]]
     found += [f"{r['label']}: output {bit} never toggles" for r in done for bit in r["stuck_bits"]]
@@ -118,17 +117,16 @@ def score(rows: list[dict]) -> list[tuple[str, bool, str]]:
     msg = "no result" if not power else (
         f"worst {power['power_w'] * 1e3:.3f} mW at {power['label']} (<= {POWER_MAX_W * 1e3:g}); by pin: "
         + ", ".join(f"{p} {power[f'power_{p}_w'] * 1e3:.3f}" for p in adc_metrics.PINS))
-    if not transfer_ok:
-        msg += "; not scored because transfer_codes failed (a non-converting design earns no power credit)"
-    checks.append(("power", within and not note and transfer_ok, msg + note))
+    checks.append(("power", within and not note, msg + note))
     return checks
 
 
 def write_results(checks: list[tuple[str, bool, str]], rules: list[str]) -> float:
-    """reward.json and new-ctrf.json; a broken signoff rule in any run scores the task 0."""
+    """reward.json and new-ctrf.json. The reward is 1 only when every check passes and no run broke a signoff
+    rule, else 0; tests_total, tests_passed and the per-check report say which checks failed."""
     tests = [{"name": n, "status": "passed" if ok else "failed", "message": m} for n, ok, m in checks]
     passed = sum(ok for _, ok, _ in checks)
-    reward = passed / len(checks)
+    reward = 1.0 if passed == len(checks) else 0.0
     if rules:
         unique = list(dict.fromkeys(rules))
         tests.append({"name": "signoff_rules", "status": "failed", "message":

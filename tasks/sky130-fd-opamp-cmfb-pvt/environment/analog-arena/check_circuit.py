@@ -56,6 +56,10 @@ def circuit_lines(path: Path) -> list[str]:
     data = path.read_bytes()
     for number, raw in enumerate(data.split(b"\n"), 1):
         body = raw[:-1] if raw.endswith(b"\r") else raw
+        if body.lstrip(b" \t").startswith(b"*#"):
+            # ngspice runs `*#` lines as control commands (e.g. `*# alter`), so they are not comments.
+            print(f"{path}:{number}: a line starting with `*#` is a control command, not a comment")
+            raise SystemExit(1)
         if body.lstrip(b" \t").startswith(b"*"):
             continue
         for byte in body:
@@ -170,6 +174,22 @@ def assignment_violations(words: list[str]) -> list[str]:
             violations.append(f"parameter {name} must be positive")
         elif name in NONNEGATIVE_PARAMETERS and value < 0:
             violations.append(f"parameter {name} must be non-negative")
+    return violations
+
+
+def ideal_instance_violations(kind: str, words: list[str]) -> list[str]:
+    """An ideal R, C or L is its literal value, optionally times an integer m >= 1.
+
+    ngspice also takes instance parameters that make the element differ between analyses or conditions (`ac=` is
+    a value used only in AC and noise analysis; `tc1`, `tc2`, `dtemp`, `scale`, `noisy`, `ic` and the rest change
+    it with temperature, noise or initial state), so any other word after the value is refused.
+    """
+    violations = []
+    for word in words:
+        name, _, value = word.partition("=")
+        if name.strip().lower() == "m" and re.fullmatch(r"[1-9]\d*", value.strip()):
+            continue
+        violations.append(f"ideal {kind} takes only a literal value and an integer m=<n>; {word} is not allowed")
     return violations
 
 
@@ -402,6 +422,11 @@ def main() -> int:
             elif target in pdk_subcircuits:
                 if target not in allowed_pdk:
                     violations.append((number, f"disallowed PDK subcircuit {target}", text))
+                values = assignments(words[1:])
+                if "mult" in values and values["mult"] != values.get("m", 1.0):
+                    # The Sky130 wrappers divide the mismatch spread by sqrt(mult) without multiplying the device,
+                    # so a mult other than the instance's m would hide mismatch for free.
+                    violations.append((number, "mult on a PDK device must equal its m (default 1)", text))
                 if current_subcircuit:
                     has_leaf[current_subcircuit] = True
             else:
@@ -420,6 +445,9 @@ def main() -> int:
                     violations.append((number, f"{kind} value must be positive", text))
                 for reason in assignment_violations(words[4:]):
                     violations.append((number, reason, text))
+                if kind in "RCL":
+                    for reason in ideal_instance_violations(kind, words[4:]):
+                        violations.append((number, reason, text))
             if current_subcircuit and kind == "L":
                 inductors[current_subcircuit].add(words[0].lower())
             elif current_subcircuit and kind == "K" and len(words) >= 4:

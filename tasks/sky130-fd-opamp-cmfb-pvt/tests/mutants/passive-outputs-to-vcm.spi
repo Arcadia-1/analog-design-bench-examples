@@ -1,0 +1,6 @@
+* Mutant (cheat): no amplifier at all; each output is 1 ohm to vcm and the bias current goes into one NMOS diode.
+.subckt fd_opamp vss ibias vdd vcm vinp vinn voutp voutn
+XB0 ibias ibias vss vss sky130_fd_pr__nfet_01v8 l=2 w=12.8 nf=4
+RP voutp vcm 1
+RN voutn vcm 1
+.ends fd_opamp

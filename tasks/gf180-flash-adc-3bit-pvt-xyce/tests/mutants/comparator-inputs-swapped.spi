@@ -1,5 +1,5 @@
 * Mutant: every comparator has vin and its ladder tap swapped, so the thermometer code is inverted.
-* Expected: fails transfer_codes, overrange_codes, sndr_3mhz and sndr_23mhz; power is not credited.
+* Expected: fails transfer_codes, overrange_codes, sndr_3mhz and sndr_23mhz; reward 0.
 
 .subckt fa_inv a y vdd vss
 MP y a vdd vdd pfet_03v3 w=4u l=0.28u

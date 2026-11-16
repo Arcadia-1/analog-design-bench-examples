@@ -57,9 +57,9 @@ product.
 ## Scored checks
 
 Each check passes or fails, and must pass in every run it uses; a run that
-does not complete fails only the checks that use it. `power` is scored only
-when `transfer_codes` passes, so a circuit that does not convert earns no
-credit for drawing little. The reward is the fraction of checks that pass.
+does not complete fails the checks that use it. The reward is 1 only when
+every check passes, and 0 otherwise; the report still lists each check and
+how many passed.
 
 | Check | Runs | Requirement |
 |---|---|---|
@@ -78,7 +78,7 @@ Measurement definitions:
   below and above each threshold, and out-of-range inputs of 0.4 V and 3.0 V.
   The 0.3 LSB window is the usual integral-linearity bound for a flash ADC:
   the threshold may drift by up to that before its code band is less than half
-  an LSB wide, and the sine checks catch errors between 0.15 and 0.3 LSB.
+  an LSB wide.
   The first two conversions warm up the circuit and are not scored. Grading
   uses its own order: every value 0.3 LSB from a threshold is reached from a
   code on the other side of that threshold, most from two or more codes away,
@@ -97,9 +97,12 @@ Measurement definitions:
   to 1.5 ns after it, so threshold and sampling errors below 0.15 LSB do not
   change any code. An ideal 3-bit quantizer gives 22.89 dB on this record. The
   22 dB limit allows a little loss; it does not catch every single-code error
-  (one near a peak can cost as little as about 0.5 dB), but a threshold more
-  than 0.3 LSB off, or several errors, costs more. Static threshold accuracy is
-  held by `transfer_codes`; this check adds the 0.15-0.3 LSB band.
+  (one near a peak can cost as little as about 0.5 dB). Threshold errors below
+  0.15 LSB never change a code here; larger ones change a code only where a
+  sample lies close enough to that threshold, so this check does not bound
+  thresholds more tightly than `transfer_codes` (0.3 LSB): a design with every
+  threshold shifted 0.2 LSB the same way can pass both. What it adds is the
+  converter working on a moving input at this rate.
 - **23.4 MHz sine.** `vin` source = 1.8 V + 0.72 V·sin(2π·23.4375 MHz·t + φ),
   bin 15 of 32. After two warm-up conversions, 32 codes are read. The 32
   samples fall on 32 evenly spaced phases of the tone, so an ideal quantizer

@@ -28,17 +28,14 @@ NODESET_MAX_MV = 1.0
 SETTLE_MAX = 10e-6
 OVERSHOOT_MAX = 50e-3
 TARGET_MATCH = 1e-3
-# A circuit is graded as a reference only if vref stays in this coarse window at every DC point and its
-# line regulation and temperature coefficient stay below these coarse limits; otherwise the reward is 0.
-GATE_VREF_MIN, GATE_VREF_MAX = 0.9, 1.3
-GATE_LINE_MAX_MV_PER_V = 20.0
-GATE_TC_MAX_PPM = 500.0
 
 # Coverage.
 CORNERS = ["tt", "ss", "ff", "sf", "fs"]
 SUPPLIES = [3.0, 3.3, 3.6]
 DC_TEMPS = sorted(set(range(-40, 126, 5)) | {27})
 EDGE_TEMPS = [-40, 27, 125]
+DISABLE_SUPPLIES = [3.0, 3.6]
+DISABLE_TEMPS = [-40, 125]
 STARTUP_MODES = {  # name: (supply rise, load capacitance)
     "ramp-1us": (1e-6, "20p"),
     "ramp-100us": (100e-6, "2p"),
@@ -52,6 +49,7 @@ DEPENDENT_CHECKS = {
            "shutdown", "startup_settling"],
     "ac": ["psrr_10khz", "noise_10khz"],
     "startup": ["startup_settling", "startup_overshoot"],
+    "disable": ["shutdown"],
 }
 
 
@@ -111,6 +109,11 @@ def startup_job(corner, vdd, temp, mode):
     return f"startup/{mode}/{corner}/{vdd:g}V/{temp}C", deck
 
 
+def disable_job(corner, vdd, temp):
+    deck = bs.render(template("tb_disable.sim"), **bs.corner_tokens(corner), cl="20p", vdd=vdd, temp=temp)
+    return f"disable/{corner}/{vdd:g}V/{temp}C", deck
+
+
 def simulate(job, devices):
     label, deck = job
     try:
@@ -132,6 +135,7 @@ def main():
 
     devices = bs.dut_devices(CIRCUIT)
     jobs = [dc_job(c) for c in CORNERS] + [ac_job(c) for c in CORNERS]
+    jobs += [disable_job(c, v, t) for c in CORNERS for v in DISABLE_SUPPLIES for t in DISABLE_TEMPS]
     jobs += [startup_job(c, v, t, m) for c in CORNERS for v in SUPPLIES for t in EDGE_TEMPS
              for m in STARTUP_MODES]
     with ThreadPoolExecutor(min(len(jobs), available_cpus())) as pool:
@@ -139,7 +143,6 @@ def main():
     decks = dict(jobs)
 
     dc_vref = {}
-    gate = []
     for label, plots, violations, error in results:
         kind = label.split("/")[0]
         report["violations"] += violations
@@ -151,12 +154,6 @@ def main():
         if kind == "dc":
             m = bs.dc_metrics(plots)
             dc_vref[label.split("/")[1]] = m["vref"]
-            if not all(GATE_VREF_MIN <= v <= GATE_VREF_MAX for v in m["vref"].values()):
-                gate.append(f"{label}: vref outside {GATE_VREF_MIN}-{GATE_VREF_MAX} V")
-            if not max(m["line_mv_per_v"].values()) <= GATE_LINE_MAX_MV_PER_V:
-                gate.append(f"{label}: line regulation above {GATE_LINE_MAX_MV_PER_V:g} mV/V")
-            if not max(m["tc_ppm"].values()) <= GATE_TC_MAX_PPM:
-                gate.append(f"{label}: temperature coefficient above {GATE_TC_MAX_PPM:g} ppm/C")
             report["metrics"][label] = {
                 "vref_min": min(m["vref"].values()), "vref_max": max(m["vref"].values()),
                 "tc_ppm_max": max(m["tc_ppm"].values()), "line_mv_per_v_max": max(m["line_mv_per_v"].values()),
@@ -187,6 +184,13 @@ def main():
                 if not spread <= NODESET_MAX_MV:
                     fail("startup_settling", f"{label} {vs:g} V {t:g} C: operating points from different "
                                              f"initial guesses differ by {spread:.1f} mV")
+        elif kind == "disable":
+            m = bs.disable_metrics(plots)
+            report["metrics"][label] = {"i_vdd_na": m["i_vdd"] * 1e9, "i_en_na": m["i_en"] * 1e9,
+                                        "vref": m["vref"], "vref_enabled": m["vref_before"]}
+            if not (m["i_vdd"] <= OFF_IQ_MAX and m["i_en"] <= OFF_IQ_MAX and m["vref"] <= OFF_VREF_MAX):
+                fail("shutdown", f"{label}: after enable falls: supply {m['i_vdd'] * 1e9:.1f} nA, enable "
+                                 f"source {m['i_en'] * 1e9:.1f} nA, vref {m['vref']:.3f} V")
         elif kind == "ac":
             m = bs.ac_metrics(plots)
             report["metrics"][label] = {"psrr_db_min": min(m["psrr_db"].values()),
@@ -212,19 +216,13 @@ def main():
                 fail("startup_overshoot", f"{label}: overshoot {m['overshoot_v'] * 1e3:.1f} mV")
 
     passed = sum(ok for ok, _ in checks.values())
-    reward = passed / len(CHECKS)
-    if any(label.startswith("dc/") for label in report["failed_runs"]):
-        gate.append("a DC bench run failed")
-    if gate:
-        reward = 0.0
-        print(f"NOT A REFERENCE (reward 0): {'; '.join(gate[:3])}")
+    # 0/1 reward: 1 only if every scored check passes and no signoff rule is broken.
+    reward = 1.0 if passed == len(CHECKS) and not report["violations"] else 0.0
     if report["violations"]:
-        reward = 0.0
         print("SIGNOFF RULE VIOLATIONS (reward 0):")
         for line in report["violations"][:20]:
             print("  " + line)
     report["checks"] = {name: {"passed": ok, "failures": msgs} for name, (ok, msgs) in checks.items()}
-    report["gate_failed"] = gate
     for name, (ok, msgs) in checks.items():
         print(f"{'PASS' if ok else 'FAIL'} {name}" + ("" if ok else ": " + "; ".join(msgs[:3])))
     for label, error in report["failed_runs"].items():
@@ -234,7 +232,7 @@ def main():
         json.dump(report, handle, indent=1, default=str)
     with open(os.path.join(LOG_DIR, "reward.json"), "w") as handle:
         json.dump({"reward": reward, "tests_total": len(CHECKS), "tests_passed": passed,
-                   "partial": reward}, handle)
+                   "partial": passed / len(CHECKS)}, handle)
     return 0
 
 
